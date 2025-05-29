@@ -54,6 +54,7 @@ type hdlc struct {
 	lowerAddress           int
 	clientAddress          int
 	replyTimeout           time.Duration
+	retries                int
 	interOctetTimeout      time.Duration
 	rrr                    int
 	sss                    int
@@ -66,13 +67,14 @@ type hdlc struct {
 	mutex                  sync.Mutex
 }
 
-func New(transport dlms.Transport, replyTimeout time.Duration, interOctetTimeout time.Duration, address int, client int, server int) dlms.Transport {
+func New(transport dlms.Transport, replyTimeout time.Duration, retries int, interOctetTimeout time.Duration, address int, client int, server int) dlms.Transport {
 	h := &hdlc{
 		maxInfoFieldLengthSend: maxInfoFieldLength,
 		upperAddress:           server,
 		lowerAddress:           address,
 		clientAddress:          client,
 		replyTimeout:           replyTimeout,
+		retries:                retries,
 		interOctetTimeout:      interOctetTimeout,
 		rrr:                    0,
 		sss:                    0,
@@ -205,7 +207,7 @@ func (h *hdlc) Send(src []byte) error {
 	retries := 0
 	remoteReady := true
 
-	for retries < 3 {
+	for {
 		var frameToSend []byte
 
 		// Send I frame if remote is ready, otherwise send RR frame
@@ -248,9 +250,10 @@ func (h *hdlc) Send(src []byte) error {
 		}
 
 		retries++
+		if retries > h.retries {
+			return fmt.Errorf("maximum retries reached")
+		}
 	}
-
-	return fmt.Errorf("maximum retries reached")
 }
 
 func (h *hdlc) increaseSequenceNumber(seq int) int {
