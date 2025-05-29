@@ -275,7 +275,7 @@ func (c *client) sendReceive(src []byte) ([]byte, error) {
 
 	err := c.transport.Send(src)
 	if err != nil {
-		return nil, dlms.NewError(dlms.ErrorCommunicationFailed, fmt.Sprintf("error sending AARQ: %v", err))
+		return nil, dlms.NewError(dlms.ErrorCommunicationFailed, fmt.Sprintf("error sending data: %v", err))
 	}
 
 	if c.settings.UseBroadcast {
