@@ -98,6 +98,10 @@ func (w *wrapper) SetAddress(client int, server int) {
 }
 
 func (w *wrapper) SetReception(dc dlms.DataChannel) {
+	if w.dc != nil {
+		close(w.dc)
+	}
+
 	w.dc = dc
 }
 
