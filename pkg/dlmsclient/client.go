@@ -96,7 +96,12 @@ func (c *client) IsConnected() bool {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	return c.transport.IsConnected()
+	isConnected := c.transport.IsConnected()
+	if !isConnected {
+		c.closeAssociation()
+	}
+
+	return isConnected
 }
 
 func (c *client) SetNotificationChannel(id string, nc chan dlms.Notification) {
@@ -224,7 +229,7 @@ func (c *client) IsAssociated() bool {
 	defer c.mutex.Unlock()
 
 	if !c.transport.IsConnected() {
-		c.isAssociated = false
+		c.closeAssociation()
 	}
 
 	return c.isAssociated
@@ -234,6 +239,8 @@ func (c *client) manager() {
 	for {
 		data, ok := <-c.tc
 		if !ok {
+			c.closeAssociation()
+
 			return
 		}
 
