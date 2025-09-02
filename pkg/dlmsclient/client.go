@@ -305,7 +305,7 @@ func (c *client) subscribe() {
 	c.subsMutex.Lock()
 	defer c.subsMutex.Unlock()
 
-	c.dc = make(dlms.DataChannel)
+	c.dc = make(dlms.DataChannel, 1)
 }
 
 func (c *client) unsubscribe() {
