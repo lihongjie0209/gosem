@@ -286,8 +286,10 @@ func TestAsnEncode(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "raw",
-			v:       "raw{0204090Ca31cfc8d8e10d9a78ba9f8470918d3bf12b805219580d0c5fb8908d65ba40bc9a2dbf2466a670941a95e323c090c16ecd66199dbba69814dee55a01b1afaec319ec5ccb1cf43e8fd6c132954cded79caf2242ef5a93c57d53e51f763b6cad591dba5c6430e2b5f544f090C5e129ea9722e8685cd8019f4}",
+			name: "raw",
+			v: `raw{02 04090C		a31cfc8d8e10d9a78ba9f8470
+			    918d 3bf12b805219580d0c5fb8908d65ba40bc9a2dbf2466a670941a95e323c090c16ecd66199dbba69814dee55a01b1afaec319ec5ccb1cf43e8fd6c132954cded79caf2242ef5a93c57d53e51f763b6cad591dba5c6430e2b5f544f090C5e129ea9722e
+				8685cd8 	 019f4}`,
 			want:    CreateAxdrStructure([]*DlmsData{CreateAxdrOctetString("a31cfc8d8e10d9a78ba9f847"), CreateAxdrOctetString("d3bf12b805219580d0c5fb8908d65ba40bc9a2dbf2466a67"), CreateAxdrOctetString("a95e323c090c16ecd66199dbba69814dee55a01b1afaec319ec5ccb1cf43e8fd6c132954cded79caf2242ef5a93c57d53e51f763b6cad591dba5c6430e2b5f544f"), CreateAxdrOctetString("5e129ea9722e8685cd8019f4")}),
 			wantErr: false,
 		},
