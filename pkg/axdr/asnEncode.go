@@ -51,7 +51,11 @@ const (
 )
 
 func AsnEncode(value string) (data *DlmsData, err error) {
-	re := regexp.MustCompile(filter)
+	// Remove all new lines and carriage returns
+	re := regexp.MustCompile(`[\r\n]+`)
+	value = re.ReplaceAllString(value, "")
+
+	re = regexp.MustCompile(filter)
 	valueSplit := re.FindStringSubmatch(value)
 
 	if len(valueSplit) != 3 {
@@ -181,7 +185,11 @@ func AsnEncode(value string) (data *DlmsData, err error) {
 		}
 		data = CreateAxdrTime(tmp)
 	case strRaw:
-		src, err := hex.DecodeString(valueSplit[2])
+		// Remove all spaces, tabs and new lines
+		re := regexp.MustCompile(`\s+`)
+		cleaned := re.ReplaceAllString(valueSplit[2], "")
+
+		src, err := hex.DecodeString(cleaned)
 		if err != nil {
 			return nil, fmt.Errorf(nonEncodableError+"%w", err)
 		}
