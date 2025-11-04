@@ -33,6 +33,7 @@ type Client interface {
 	GetRequestWithSelectiveAccessByDateAndValues(att *AttributeDescriptor, start time.Time, end time.Time, values []AttributeDescriptor, data interface{}) (err error)
 	GetRequestWithStructOfElements(data interface{}) (err error)
 	SetRequest(att *AttributeDescriptor, data interface{}) (err error)
+	SetRequestWithList(att []*AttributeDescriptor, data []interface{}) (err error)
 	SetRequestWithStructOfElements(data interface{}, continueOnSetRejected bool) (err error)
 	ActionRequest(mth *MethodDescriptor, data interface{}) (err error)
 	CheckRequestWithStructOfElements(data interface{}) (err error)

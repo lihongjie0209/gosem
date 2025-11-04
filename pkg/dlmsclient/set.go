@@ -16,6 +16,13 @@ func (c *client) SetRequest(att *dlms.AttributeDescriptor, data interface{}) (er
 	return c.setRequest(att, data)
 }
 
+func (c *client) SetRequestWithList(att []*dlms.AttributeDescriptor, data []interface{}) (err error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	return c.setRequestWithList(att, data)
+}
+
 //nolint:nestif
 func (c *client) SetRequestWithStructOfElements(data interface{}, continueOnSetRejected bool) error {
 	c.mutex.Lock()
@@ -180,6 +187,113 @@ func (c *client) setRequestWithDataBlock(att *dlms.AttributeDescriptor, out []by
 
 		if resp.BlockNum != blockNumber {
 			return dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("in %s unexpected block number %d (expected %d)", att.String(), resp.BlockNum, blockNumber))
+		}
+
+		isFirstBlock = false
+		out = out[blockSize:]
+		blockNumber++
+	}
+}
+
+func (c *client) setRequestWithList(att []*dlms.AttributeDescriptor, data []interface{}) (err error) {
+	if len(att) != len(data) {
+		return dlms.NewError(dlms.ErrorInvalidParameter, "attribute descriptor list and data list must have the same length")
+	}
+
+	output := []byte{byte(len(data))}
+
+	for i := range data {
+		dt, ok := data[i].(*axdr.DlmsData)
+		if !ok {
+			dt, err = axdr.MarshalData(data[i])
+			if err != nil {
+				return dlms.NewError(dlms.ErrorInvalidParameter, fmt.Sprintf("error marshaling %s data: %v", att[i].String(), err))
+			}
+		}
+
+		out, err := dt.Encode()
+		if err != nil {
+			return dlms.NewError(dlms.ErrorInvalidParameter, fmt.Sprintf("error encoding %s data: %v", att[i].String(), err))
+		}
+
+		output = append(output, out...)
+	}
+
+	// Currently only supports sending WithListAndBlock
+	return c.setRequestWithListAndDataBlock(att, output)
+}
+
+func (c *client) setRequestWithListAndDataBlock(att []*dlms.AttributeDescriptor, out []byte) error {
+	isLastBlock := false
+	isFirstBlock := true
+	blockNumber := uint32(1)
+
+	for {
+		lenHeader := 11
+		if isFirstBlock {
+			lenHeader += len(att) * 10
+		}
+		if c.settings.Ciphering.Level != dlms.SecurityLevelNone {
+			lenHeader += 21
+		}
+
+		blockSize := c.settings.MaxPduSendSize - lenHeader
+		if blockSize > len(out) {
+			blockSize = len(out)
+			isLastBlock = true
+		}
+
+		db := dlms.CreateDataBlockSA(isLastBlock, blockNumber, out[:blockSize])
+
+		var req dlms.CosemPDU
+
+		if isFirstBlock {
+			attList := make([]dlms.AttributeDescriptorWithSelection, len(att))
+			for i := range att {
+				attList[i] = dlms.AttributeDescriptorWithSelection{
+					ClassID:          att[i].ClassID,
+					InstanceID:       att[i].InstanceID,
+					AttributeID:      att[i].AttributeID,
+					AccessDescriptor: nil,
+				}
+			}
+
+			req = dlms.CreateSetRequestWithListAndFirstDataBlock(unicastInvokeID, attList, *db)
+		} else {
+			req = dlms.CreateSetRequestWithDataBlock(unicastInvokeID, *db)
+		}
+
+		pdu, err := c.encodeSendReceiveAndDecode(req)
+		if err != nil {
+			return err
+		}
+
+		if isLastBlock {
+			resp, ok := pdu.(dlms.SetResponseLastDataBlockWithList)
+			if !ok {
+				return dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("in set with list, unexpected PDU response type: %T", pdu))
+			}
+
+			if resp.BlockNum != blockNumber {
+				return dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("in set with list, unexpected block number %d (expected %d)", resp.BlockNum, blockNumber))
+			}
+
+			for i, respTag := range resp.ResultList {
+				if respTag != dlms.TagAccSuccess {
+					return dlms.NewError(dlms.ErrorSetRejected, fmt.Sprintf("set %s rejected: %s", att[i].String(), respTag.String()))
+				}
+			}
+
+			return nil
+		}
+
+		resp, ok := pdu.(dlms.SetResponseDataBlock)
+		if !ok {
+			return dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("in set with list, unexpected PDU response type: %T", pdu))
+		}
+
+		if resp.BlockNum != blockNumber {
+			return dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("in set with list, unexpected block number %d (expected %d)", resp.BlockNum, blockNumber))
 		}
 
 		isFirstBlock = false

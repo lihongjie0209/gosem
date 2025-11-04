@@ -194,11 +194,11 @@ func parseUserInformation(settings *Settings, tagLength int, src []byte) (ir *In
 
 		src, err = DecipherData(&cfg, src)
 		if err != nil {
-			// As a tricky result, if decipher fails, we return a ConfirmedServiceError with application-reference (0) and deciphering-error (6)
+			// As a tricky result, if decipher fails, we return a ConfirmedServiceError with other (10) and value 99
 			cse := ConfirmedServiceError{
 				ConfirmedServiceError: TagErrInitiateError,
-				ServiceError:          TagErrApplicationReference,
-				Value:                 TagApplicationReferenceDecipheringError,
+				ServiceError:          TagErrOtherError,
+				Value:                 TagOtherDecipheringError,
 			}
 
 			return nil, &cse, nil, nil
