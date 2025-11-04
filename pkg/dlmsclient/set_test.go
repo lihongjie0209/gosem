@@ -253,3 +253,41 @@ func TestClient_SetRequestWithDataBlockFail(t *testing.T) {
 
 	tm.AssertExpectations(t)
 }
+
+func TestClient_SetRequestWithListAndDataBlock(t *testing.T) {
+	c, tm, rdc := associate(t)
+
+	att := []*dlms.AttributeDescriptor{
+		dlms.CreateAttributeDescriptor(1, "0-0:94.34.171.255", 2),
+		dlms.CreateAttributeDescriptor(3, "0-0:94.34.170.255", 2),
+		dlms.CreateAttributeDescriptor(3, "1-0:0.9.11.255", 2),
+		dlms.CreateAttributeDescriptor(3, "1-1:94.34.1.255", 2),
+		dlms.CreateAttributeDescriptor(3, "1-2:94.34.1.255", 2),
+		dlms.CreateAttributeDescriptor(1, "0-0:94.34.150.255", 2),
+		dlms.CreateAttributeDescriptor(1, "0-0:94.34.151.255", 2),
+		dlms.CreateAttributeDescriptor(1, "0-0:94.34.152.255", 2),
+		dlms.CreateAttributeDescriptor(3, "0-0:94.34.153.255", 2),
+		dlms.CreateAttributeDescriptor(3, "0-0:94.34.154.255", 2),
+	}
+
+	data := []interface{}{
+		string("302E302E35353535353535353535353535353535"),
+		uint16(5),
+		uint16(128),
+		uint16(1000),
+		uint32(300),
+		uint32(0xC0A80101),
+		uint16(123),
+		uint8(3),
+		uint16(30),
+		uint16(5),
+	}
+
+	sendReceive(tm, rdc, "c105c10a000100005e22abff0200000300005e22aaff02000003010000090bff0200000301015e2201ff0200000301025e2201ff0200000100005e2296ff0200000100005e2297ff0200000100005e2298ff0200000300005e2299ff0200000300005e229aff02000000000001110a0914302e302e35353535353535353535", "C502C100000001")
+	sendReceive(tm, rdc, "c103c10100000002243535353535351200051200801203e8060000012c06c0a8010112007b110312001e120005", "C504C10A0000000000000000000000000002")
+
+	err := c.SetRequestWithList(att, data)
+	assert.NoError(t, err)
+
+	tm.AssertExpectations(t)
+}

@@ -81,7 +81,7 @@ func TestDecodeAAREWithSecurity(t *testing.T) {
 	assert.NotNil(t, aare.ConfirmedServiceError)
 	assert.Equal(t, TagErrInitiateError, aare.ConfirmedServiceError.ConfirmedServiceError)
 	assert.Equal(t, TagErrApplicationReference, aare.ConfirmedServiceError.ServiceError)
-	assert.Equal(t, uint8(6), aare.ConfirmedServiceError.Value)
+	assert.Equal(t, TagApplicationReferenceDecipheringError, aare.ConfirmedServiceError.Value)
 	assert.NotNil(t, aare.ReceivedIC)
 	assert.Equal(t, uint32(0x00000109), *aare.ReceivedIC)
 
@@ -95,8 +95,8 @@ func TestDecodeAAREWithSecurity(t *testing.T) {
 	assert.Nil(t, aare.InitiateResponse)
 	assert.NotNil(t, aare.ConfirmedServiceError)
 	assert.Equal(t, TagErrInitiateError, aare.ConfirmedServiceError.ConfirmedServiceError)
-	assert.Equal(t, TagErrApplicationReference, aare.ConfirmedServiceError.ServiceError)
-	assert.Equal(t, uint8(6), aare.ConfirmedServiceError.Value)
+	assert.Equal(t, TagErrOtherError, aare.ConfirmedServiceError.ServiceError)
+	assert.Equal(t, TagOtherDecipheringError, aare.ConfirmedServiceError.Value)
 	assert.Nil(t, aare.ReceivedIC)
 
 	// Reply with a confirmed service error (without chipering)
@@ -110,7 +110,7 @@ func TestDecodeAAREWithSecurity(t *testing.T) {
 	assert.NotNil(t, aare.ConfirmedServiceError)
 	assert.Equal(t, TagErrInitiateError, aare.ConfirmedServiceError.ConfirmedServiceError)
 	assert.Equal(t, TagErrApplicationReference, aare.ConfirmedServiceError.ServiceError)
-	assert.Equal(t, uint8(6), aare.ConfirmedServiceError.Value)
+	assert.Equal(t, TagApplicationReferenceDecipheringError, aare.ConfirmedServiceError.Value)
 	assert.Nil(t, aare.ReceivedIC)
 
 	// Sagemcom reply
@@ -123,8 +123,8 @@ func TestDecodeAAREWithSecurity(t *testing.T) {
 	assert.Nil(t, aare.InitiateResponse)
 	assert.NotNil(t, aare.ConfirmedServiceError)
 	assert.Equal(t, TagErrInitiateError, aare.ConfirmedServiceError.ConfirmedServiceError)
-	assert.Equal(t, TagErrApplicationReference, aare.ConfirmedServiceError.ServiceError)
-	assert.Equal(t, uint8(6), aare.ConfirmedServiceError.Value)
+	assert.Equal(t, TagErrOtherError, aare.ConfirmedServiceError.ServiceError)
+	assert.Equal(t, TagOtherDecipheringError, aare.ConfirmedServiceError.Value)
 	assert.Nil(t, aare.ReceivedIC)
 
 	// Sogecam reply
@@ -137,8 +137,8 @@ func TestDecodeAAREWithSecurity(t *testing.T) {
 	assert.Nil(t, aare.InitiateResponse)
 	assert.NotNil(t, aare.ConfirmedServiceError)
 	assert.Equal(t, TagErrInitiateError, aare.ConfirmedServiceError.ConfirmedServiceError)
-	assert.Equal(t, TagErrApplicationReference, aare.ConfirmedServiceError.ServiceError)
-	assert.Equal(t, uint8(6), aare.ConfirmedServiceError.Value)
+	assert.Equal(t, TagErrOtherError, aare.ConfirmedServiceError.ServiceError)
+	assert.Equal(t, TagOtherDecipheringError, aare.ConfirmedServiceError.Value)
 	assert.Nil(t, aare.ReceivedIC)
 
 	// ZIV reply
@@ -151,7 +151,7 @@ func TestDecodeAAREWithSecurity(t *testing.T) {
 	assert.Nil(t, aare.InitiateResponse)
 	assert.NotNil(t, aare.ConfirmedServiceError)
 	assert.Equal(t, TagErrInitiateError, aare.ConfirmedServiceError.ConfirmedServiceError)
-	assert.Equal(t, TagErrApplicationReference, aare.ConfirmedServiceError.ServiceError)
-	assert.Equal(t, uint8(6), aare.ConfirmedServiceError.Value)
+	assert.Equal(t, TagErrOtherError, aare.ConfirmedServiceError.ServiceError)
+	assert.Equal(t, TagOtherDecipheringError, aare.ConfirmedServiceError.Value)
 	assert.Nil(t, aare.ReceivedIC)
 }

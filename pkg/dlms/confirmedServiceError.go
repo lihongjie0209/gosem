@@ -50,6 +50,10 @@ const (
 	TagApplicationReferenceDecipheringError              uint8 = 6
 )
 
+const (
+	TagOtherDecipheringError uint8 = 99
+)
+
 type ConfirmedServiceError struct {
 	ConfirmedServiceError confirmedServiceErrorTag
 	ServiceError          serviceErrorTag
