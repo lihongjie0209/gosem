@@ -516,11 +516,16 @@ func TestClient_CompleteSecureCommunication(t *testing.T) {
 	assert.ErrorAs(t, err, &clientError)
 	assert.Equal(t, dlms.ErrorFailureInvocationCounter, clientError.Code())
 
+	// Should work with non ciphered reply
+	sendReceive(tm, rdc, "d01e300000000360dee75200e0f8a10984a2916149e31f2fc5ba7e9b264e11c5", "C401C10010003C")
+	err = c.GetRequest(dlms.CreateAttributeDescriptor(8, "0-0:1.0.0.255", 2), nil)
+	assert.NoError(t, err)
+
 	sendReceive(tm, rdc, "6239800100BE3404322130300000005A8E9B83D641B89FAAF36DA504132C34F87E4BA66175A7DCED015460239699C72C18C06DB29C54673B83BAC0", "6328800100BE230421281F300000005BCD34827974EDCF8B1DAB306F62C58AB42052DB67361377507825")
 	assert.NoError(t, c.CloseAssociation())
 
 	assert.Equal(t, uint32(0x0000005B), c.GetSettings().Ciphering.UnicastKeyIC)
-	assert.Equal(t, uint32(0x00000003), c.GetSettings().Ciphering.DedicatedKeyIC)
+	assert.Equal(t, uint32(0x00000004), c.GetSettings().Ciphering.DedicatedKeyIC)
 
 	tm.AssertExpectations(t)
 }

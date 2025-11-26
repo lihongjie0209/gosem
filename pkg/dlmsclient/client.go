@@ -353,7 +353,7 @@ func (c *client) encodeSendReceiveAndDecode(req dlms.CosemPDU) (dlms.CosemPDU, e
 		return nil, nil
 	}
 
-	if c.settings.Ciphering.Level != dlms.SecurityLevelNone {
+	if c.settings.Ciphering.Level != dlms.SecurityLevelNone && dlms.IsSecuredTag(dlms.CosemTag(out[0])) {
 		out, err = c.decipherData(out)
 		if err != nil {
 			return nil, err

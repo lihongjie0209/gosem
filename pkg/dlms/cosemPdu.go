@@ -62,6 +62,28 @@ func ErrWrongSlice(current []byte, correct []byte) error {
 	return fmt.Errorf("wrong data, received %v, expecting %v", current, correct)
 }
 
+func IsSecuredTag(tag CosemTag) bool {
+	switch tag {
+	case TagGloGetRequest,
+		TagGloSetRequest,
+		TagGloEventNotificationRequest,
+		TagGloActionRequest,
+		TagGloGetResponse,
+		TagGloSetResponse,
+		TagGloActionResponse,
+		TagDedGetRequest,
+		TagDedSetRequest,
+		TagDedEventNotificationRequest,
+		TagDedActionRequest,
+		TagDedGetResponse,
+		TagDedSetResponse,
+		TagDedActionResponse:
+		return true
+	default:
+		return false
+	}
+}
+
 // Value will return primitive value of the target.
 // This is used for comparing with non custom typed object
 func (s CosemTag) Value() uint8 {
