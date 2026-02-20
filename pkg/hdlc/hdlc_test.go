@@ -45,6 +45,29 @@ func TestHDLC_Connect(t *testing.T) {
 	transportMock.AssertExpectations(t)
 }
 
+func TestHDLC_ConnectWithoutNegotiation(t *testing.T) {
+	transportMock := mocks.NewTransportMock(t)
+
+	rdc := make(dlms.DataChannel, 10)
+	transportMock.On("SetReception", mock.Anything).Run(func(args mock.Arguments) {
+		rdc = args.Get(0).(dlms.DataChannel)
+	}).Once()
+
+	w := hdlc.New(transportMock, replyTimeout, 3, interOctetTimeout, 16, 73, 1)
+
+	transportMock.On("Connect").Return(nil).Once()
+	sendReceive(transportMock, rdc, "7EA00802219393DBD87E", "7EA0089302217320287E")
+	assert.NoError(t, w.Connect())
+
+	transportMock.On("IsConnected").Return(true).Once()
+	assert.True(t, w.IsConnected())
+
+	transportMock.On("Close").Return(nil).Once()
+	w.Close()
+
+	transportMock.AssertExpectations(t)
+}
+
 func TestHDLC_ConnectFail(t *testing.T) {
 	transportMock := mocks.NewTransportMock(t)
 

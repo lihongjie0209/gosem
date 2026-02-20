@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	maxInfoFieldLength = 512
-	minInfoFieldLength = 32
+	maxInfoFieldLength        = 512
+	defaultMaxInfoFieldLength = 128
+	minInfoFieldLength        = 32
 
 	maxDataLength  = 2048 - 3
 	maxFrameLength = 10 + maxDataLength
@@ -531,6 +532,12 @@ func (h *hdlc) handleConnectReply(rf *ReceivedFrame) error {
 	}
 
 	data := rf.Data
+
+	if len(data) == 0 {
+		h.maxInfoFieldLengthSend = defaultMaxInfoFieldLength
+
+		return nil
+	}
 
 	if len(data) < 3 {
 		return fmt.Errorf("invalid UA data, have %d", len(data))
