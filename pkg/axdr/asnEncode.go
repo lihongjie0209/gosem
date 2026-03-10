@@ -152,7 +152,7 @@ func AsnEncode(value string) (data *DlmsData, err error) {
 		}
 		data = CreateAxdrLong64Unsigned(tmp)
 	case strEnum:
-		tmp, err := strconv.ParseInt(valueSplit[2], 10, 8)
+		tmp, err := strconv.ParseUint(valueSplit[2], 10, 8)
 		if err != nil {
 			return nil, fmt.Errorf(nonEncodableError+"%w", err)
 		}
