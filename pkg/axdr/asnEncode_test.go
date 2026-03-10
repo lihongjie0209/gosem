@@ -293,6 +293,12 @@ func TestAsnEncode(t *testing.T) {
 			want:    CreateAxdrStructure([]*DlmsData{CreateAxdrOctetString("a31cfc8d8e10d9a78ba9f847"), CreateAxdrOctetString("d3bf12b805219580d0c5fb8908d65ba40bc9a2dbf2466a67"), CreateAxdrOctetString("a95e323c090c16ecd66199dbba69814dee55a01b1afaec319ec5ccb1cf43e8fd6c132954cded79caf2242ef5a93c57d53e51f763b6cad591dba5c6430e2b5f544f"), CreateAxdrOctetString("5e129ea9722e8685cd8019f4")}),
 			wantErr: false,
 		},
+		{
+			name:    "manufacturer_enum",
+			v:       "enum{200}",
+			want:    CreateAxdrEnum(200),
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
