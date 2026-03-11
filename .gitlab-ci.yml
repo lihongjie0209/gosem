@@ -18,7 +18,7 @@ stages:
 lint:
     stage: lint
     needs: []
-    image: 'circutor/golang:1.23'
+    image: 'circutor/golang:1.25'
     script:
         - echo "Linter"
         - golangci-lint version
@@ -28,7 +28,7 @@ lint:
 test:
     stage: test
     needs: []
-    image: 'circutor/golang:1.23'
+    image: 'circutor/golang:1.25'
     script:
         - make test
     coverage: /total:.+\(statements\).+\d+.\d+%/

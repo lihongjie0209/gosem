@@ -2,6 +2,7 @@ package wrapper
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log"
 
@@ -50,7 +51,7 @@ func (w *wrapper) Close() {
 
 func (w *wrapper) Connect() error {
 	if err := w.transport.Connect(); err != nil {
-		return err
+		return fmt.Errorf("failed to connect: %w", err)
 	}
 
 	return nil
@@ -63,11 +64,7 @@ func (w *wrapper) manager() {
 			return
 		}
 
-		for {
-			if len(data) == 0 {
-				break
-			}
-
+		for len(data) != 0 {
 			src, err := w.parseHeader(&data)
 			if err != nil {
 				if w.logger != nil {
@@ -85,7 +82,12 @@ func (w *wrapper) manager() {
 }
 
 func (w *wrapper) Disconnect() error {
-	return w.transport.Disconnect()
+	err := w.transport.Disconnect()
+	if err != nil {
+		return fmt.Errorf("failed to disconnect: %w", err)
+	}
+
+	return nil
 }
 
 func (w *wrapper) IsConnected() bool {
@@ -107,11 +109,11 @@ func (w *wrapper) SetReception(dc dlms.DataChannel) {
 
 func (w *wrapper) Send(src []byte) error {
 	if !w.transport.IsConnected() {
-		return fmt.Errorf("not connected")
+		return errors.New("not connected")
 	}
 
 	if len(src) > (maxLength - headerLength) {
-		return fmt.Errorf("message too long")
+		return errors.New("message too long")
 	}
 
 	uri := make([]byte, headerLength+len(src))
@@ -123,7 +125,12 @@ func (w *wrapper) Send(src []byte) error {
 
 	copy(uri[headerLength:], src)
 
-	return w.transport.Send(uri)
+	err := w.transport.Send(uri)
+	if err != nil {
+		return fmt.Errorf("failed to send data: %w", err)
+	}
+
+	return nil
 }
 
 func (w *wrapper) SetLogger(logger *log.Logger) {

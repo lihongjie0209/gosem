@@ -276,7 +276,12 @@ func (c *client) sendReceive(src []byte) ([]byte, error) {
 
 	if c.settings.UseBroadcast {
 		if twb, ok := c.transport.(dlms.TransportWithBroadcast); ok {
-			return nil, twb.SendBroadcast(src)
+			err := twb.SendBroadcast(src)
+			if err != nil {
+				return nil, dlms.NewError(dlms.ErrorCommunicationFailed, fmt.Sprintf("error sending broadcast data: %v", err))
+			}
+
+			return nil, nil
 		}
 	}
 
@@ -366,8 +371,7 @@ func (c *client) encodeSendReceiveAndDecode(req dlms.CosemPDU) (dlms.CosemPDU, e
 
 	pdu, err := dlms.DecodeCosem(&out)
 	if err != nil {
-		err = dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("error decoding PDU: %v", err))
-		return nil, err
+		return nil, dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("error decoding PDU: %v", err))
 	}
 
 	return pdu, nil
@@ -425,7 +429,12 @@ func (c *client) cipherData(src []byte) ([]byte, error) {
 		c.settings.Ciphering.DedicatedKeyIC++
 	}
 
-	return dlms.CipherData(cipher, src)
+	data, err := dlms.CipherData(cipher, src)
+	if err != nil {
+		return nil, fmt.Errorf("error ciphering data: %w", err)
+	}
+
+	return data, nil
 }
 
 func (c *client) decipherData(src []byte) ([]byte, error) {
@@ -444,7 +453,7 @@ func (c *client) decipherData(src []byte) ([]byte, error) {
 
 	out, err := dlms.DecipherData(&cipher, src)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error deciphering data: %w", err)
 	}
 
 	if c.settings.Ciphering.Level == dlms.SecurityLevelGlobalKey {

@@ -65,17 +65,17 @@ func (c *client) getAttributeDescriptor(field reflect.StructField) (*dlms.Attrib
 
 	values := strings.Split(tag, ",")
 	if len(values) != 3 {
-		return nil, dlms.NewError(dlms.ErrorInvalidParameter, fmt.Sprintf("invalid obis tag: %s", tag))
+		return nil, dlms.NewError(dlms.ErrorInvalidParameter, "invalid obis tag: "+tag)
 	}
 
 	class, err := strconv.ParseUint(values[0], 0, 16)
 	if err != nil {
-		return nil, dlms.NewError(dlms.ErrorInvalidParameter, fmt.Sprintf("invalid class: %s", tag))
+		return nil, dlms.NewError(dlms.ErrorInvalidParameter, "invalid class: "+tag)
 	}
 	obis := values[1]
 	att, err := strconv.ParseUint(values[2], 0, 8)
 	if err != nil {
-		return nil, dlms.NewError(dlms.ErrorInvalidParameter, fmt.Sprintf("invalid attribute: %s", tag))
+		return nil, dlms.NewError(dlms.ErrorInvalidParameter, "invalid attribute: "+tag)
 	}
 
 	attribute := dlms.CreateAttributeDescriptor(uint16(class), obis, int8(att))

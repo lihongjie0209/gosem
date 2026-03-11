@@ -107,5 +107,10 @@ func DecipherData(cfg *Cipher, data []byte) ([]byte, error) {
 	copy(ad[1:], cfg.AuthKey)
 
 	// Decrypt data
-	return gcm.Open(nil, iv, data, ad)
+	data, err = gcm.Open(nil, iv, data, ad)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decipher data: %w", err)
+	}
+
+	return data, nil
 }

@@ -149,7 +149,7 @@ func (dec *Decoder) Decode(ori *[]byte) (r DlmsData, err error) {
 		value = output
 
 	case TagStructure:
-		// same same as array
+		// same as array
 		output := make([]*DlmsData, lengthInt)
 		// make carbon copy of src to calc rawValue later
 		temp := src

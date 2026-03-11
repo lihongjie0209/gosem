@@ -65,11 +65,7 @@ func DecodeAARE(settings *Settings, ori *[]byte) (out AARE, err error) {
 	src = src[2:]
 	length -= 2
 
-	for {
-		if length == 0 {
-			break
-		}
-
+	for length != 0 {
 		if len(src) < 2 {
 			err = ErrWrongLength(len(src), 2)
 			return

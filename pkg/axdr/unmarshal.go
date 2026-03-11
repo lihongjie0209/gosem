@@ -97,6 +97,10 @@ func unifyStruct(data *DlmsData, rv reflect.Value) error {
 	for i := 0; i < n; i++ {
 		field := rv.Field(i)
 
+		if structField := rv.Type().Field(i); rv.Type().Field(i).PkgPath != "" {
+			return fmt.Errorf("cannot unmarshal into unexported field '%s'", structField.Name)
+		}
+
 		if field.Kind() == reflect.Ptr {
 			if slice[i].Tag != TagNull && field.IsNil() {
 				field.Set(reflect.New(field.Type().Elem()))

@@ -137,7 +137,7 @@ func generateKey() ([]byte, error) {
 	dk := make([]byte, 16)
 	_, err := rand.Read(dk)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error generating random bytes for dedicated key: %w", err)
 	}
 
 	return dk, nil

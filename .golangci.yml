@@ -1,56 +1,112 @@
+version: "2"
+
 linters:
   enable:
+    - asasalint
     - asciicheck
+    - bidichk
     - bodyclose
+    - canonicalheader
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - decorder
     - dogsled
+    - dupword
     - durationcheck
+    - errchkjson
+    - errname
     - errorlint
+    - exptostd
+    - fatcontext
     - forbidigo
+    - ginkgolinter
+    - gocheckcompilerdirectives
     - gochecknoglobals
     - gochecknoinits
+    - gochecksumtype
     - gocritic
-    - godox
-    - gofmt
-    - gofumpt
     - goheader
-    - goimports
+    - gomoddirectives
     - gomodguard
     - goprintffuncname
-    - gosec
+    - grouper
+    - iface
+    - importas
+    - inamedparam
+    - iotamixing
+    - loggercheck
     - makezero
+    - mirror
     - misspell
     - nestif
-    - noctx
+    - nilnesserr
     - nolintlint
+    - nosprintfhostport
     - prealloc
     - predeclared
-    - revive
-    - stylecheck
+    - promlinter
+    - protogetter
+    - reassign
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - staticcheck
+    - tagliatelle
+    - testableexamples
     - thelper
     - tparallel
     - unconvert
     - unparam
+    - unqueryvet
+    - usestdlibvars
+    - usetesting
+    - wastedassign
     - whitespace
+    - wrapcheck
+    - zerologlint
   disable:
-    - depguard
-    - gci
-    - testpackage
-    - paralleltest
-    - nlreturn
     - cyclop
-    - wsl
-    - lll
-    - godot
-    - nakedret
-    - gocyclo
-    - funlen
-    - goconst
-    - gocognit
-    - errcheck
+    - depguard
     - dupl
+    - embeddedstructfieldcheck
+    - err113
+    - errcheck
     - exhaustive
-
-linters-settings:
-  gosec:
-    excludes:
-      - G115 # Potential integer overflow when converting between integer types
+    - exhaustruct
+    - forcetypeassert
+    - funcorder
+    - funlen
+    - gocognit
+    - goconst
+    - gocyclo
+    - godoclint
+    - godot
+    - godox
+    - gosec
+    - gosmopolitan
+    - interfacebloat
+    - intrange
+    - ireturn
+    - lll
+    - maintidx
+    - mnd
+    - modernize
+    - musttag
+    - nakedret
+    - nilerr
+    - nilnil
+    - nlreturn    
+    - noctx
+    - noinlineerr
+    - nonamedreturns
+    - paralleltest
+    - perfsprint
+    - recvcheck
+    - revive
+    - tagalign
+    - testifylint
+    - testpackage
+    - varnamelen
+    - wsl_v5
