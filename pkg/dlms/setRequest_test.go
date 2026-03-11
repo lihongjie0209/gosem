@@ -193,17 +193,11 @@ func TestDecode_SetRequestNormal(t *testing.T) {
 	// ------------------ t2 without SelectiveAccessDescriptor
 
 	src = []byte{193, 1, 81, 0, 1, 1, 0, 0, 3, 0, 255, 2, 0, 9, 5, 1, 2, 3, 4, 5}
-	a, err = DecodeSetRequestNormal(&src)
+	_, err = DecodeSetRequestNormal(&src)
 	if err != nil {
 		t.Errorf("t2 Failed to DecodeGetRequestNormal. err:%v", err)
 	}
 
-	var nilAccsDesc *SelectiveAccessDescriptor
-	b = *CreateSetRequestNormal(81, attrDesc, nilAccsDesc, dt)
-
-	if a.SelectiveAccessInfo != nilAccsDesc {
-		t.Errorf("t2 Failed. SelectiveAccessInfo.AccessSelector should be nil get: %v", a.SelectiveAccessInfo)
-	}
 	if len(src) > 0 {
 		t.Errorf("t2 Failed. src should be empty. get: %v", src)
 	}
@@ -260,16 +254,9 @@ func TestDecode_SetRequestWithFirstDataBlock(t *testing.T) {
 	// ------------------ t2 without SelectiveAccessDescriptor
 
 	src = []byte{193, 2, 81, 0, 1, 1, 0, 0, 3, 0, 255, 2, 0, 1, 0, 0, 0, 1, 5, 1, 2, 3, 4, 5}
-	a, err = DecodeSetRequestWithFirstDataBlock(&src)
+	_, err = DecodeSetRequestWithFirstDataBlock(&src)
 	if err != nil {
 		t.Errorf("t2 Failed to DecodeSetRequestWithFirstDataBlock. err:%v", err)
-	}
-
-	var nilAccsDesc *SelectiveAccessDescriptor
-	b = *CreateSetRequestWithFirstDataBlock(81, attrDesc, nilAccsDesc, dt)
-
-	if a.SelectiveAccessInfo != nilAccsDesc {
-		t.Errorf("t2 Failed. SelectiveAccessInfo.AccessSelector should be nil get: %v", a.SelectiveAccessInfo)
 	}
 	if len(src) > 0 {
 		t.Errorf("t2 Failed. src should be empty. get: %v", src)

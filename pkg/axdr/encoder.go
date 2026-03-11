@@ -188,7 +188,12 @@ func EncodeOctetString(data string) ([]byte, error) {
 
 	data = strings.ReplaceAll(data, " ", "")
 
-	return hex.DecodeString(data)
+	byteData, err := hex.DecodeString(data)
+	if err != nil {
+		return []byte{}, fmt.Errorf("data to encode is not a valid hex string")
+	}
+
+	return byteData, nil
 }
 
 // An ordered sequence of ASCII characters

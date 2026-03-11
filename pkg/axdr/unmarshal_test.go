@@ -35,6 +35,25 @@ func TestUnmarshalData(t *testing.T) {
 	assert.Equal(t, uint(0x02), result[1].Value3)
 }
 
+func TestUnmarshalDataInUnexportedField(t *testing.T) {
+	type TestData struct {
+		Time1  time.Time
+		Value1 uint16
+		Value2 int
+		value3 uint //nolint:unused
+	}
+
+	src := decodeHexString("01020204090C07D00106050F0030FF003C01121234050ABBCCDD11010204090C07D00106050F0030FFFF880112567805000000001102")
+
+	dec := NewDataDecoder(&src)
+	data, err := dec.Decode(&src)
+	assert.NoError(t, err)
+
+	var result []TestData
+	err = UnmarshalData(data, &result)
+	assert.Error(t, err)
+}
+
 func TestUnmarshalDataWithNull(t *testing.T) {
 	type TestData struct {
 		Value1 *uint16

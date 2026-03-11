@@ -998,8 +998,7 @@ func TestDecodeDate(t *testing.T) {
 			t.Errorf("combination %v failed. Byte get: %v, should:%v", idx, bt, table.bt)
 		}
 		// compare time value
-		sameValue := (table.val == val)
-		if !sameValue {
+		if !table.val.Equal(val) {
 			t.Errorf("combination %v failed. Value get: %v, should:%v", idx, val, table.val)
 		}
 		// compare remainder bytes of src
@@ -1030,8 +1029,7 @@ func TestDecodeTime(t *testing.T) {
 			t.Errorf("combination %v failed. Byte get: %v, should:%v", idx, bt, table.bt)
 		}
 		// compare time value
-		sameValue := (table.val == val)
-		if !sameValue {
+		if !table.val.Equal(val) {
 			t.Errorf("combination %v failed. Value get: %v, should:%v", idx, val, table.val)
 		}
 		// compare remainder bytes of src

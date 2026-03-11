@@ -66,7 +66,7 @@ func (c *client) SetRequestWithStructOfElements(data interface{}, continueOnSetR
 					err = dlms.NewError(dlms.ErrorSetPartial, fmt.Sprintf("partial set: %v", err))
 				}
 
-				return err
+				return fmt.Errorf("failed to set field %s: %w", v.Type().Field(i).Name, err)
 			}
 
 			errSet = err
@@ -79,7 +79,11 @@ func (c *client) SetRequestWithStructOfElements(data interface{}, continueOnSetR
 		errSet = dlms.NewError(dlms.ErrorSetPartial, fmt.Sprintf("partial set: %v", errSet))
 	}
 
-	return errSet
+	if errSet != nil {
+		return fmt.Errorf("failed to set struct of elements: %w", errSet)
+	}
+
+	return nil
 }
 
 func (c *client) setRequest(att *dlms.AttributeDescriptor, data interface{}) (err error) {

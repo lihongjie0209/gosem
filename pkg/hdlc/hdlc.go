@@ -3,6 +3,7 @@ package hdlc
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -114,7 +115,7 @@ func (h *hdlc) Connect() error {
 	defer h.mutex.Unlock()
 
 	if err := h.transport.Connect(); err != nil {
-		return err
+		return fmt.Errorf("failed to connect: %w", err)
 	}
 
 	h.maxInfoFieldLengthSend = maxInfoFieldLength
@@ -142,7 +143,7 @@ func (h *hdlc) Disconnect() error {
 	defer h.mutex.Unlock()
 
 	if !h.transport.IsConnected() {
-		return fmt.Errorf("not connected")
+		return errors.New("not connected")
 	}
 
 	defer h.transport.Disconnect()
@@ -549,11 +550,7 @@ func (h *hdlc) handleConnectReply(rf *ReceivedFrame) error {
 
 	data = data[3:]
 
-	for {
-		if len(data) < 2 {
-			break
-		}
-
+	for len(data) >= 2 {
 		code := data[0]
 		length := int(data[1])
 

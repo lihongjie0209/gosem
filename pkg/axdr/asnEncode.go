@@ -212,7 +212,6 @@ func getElementsData(data string) []string {
 	dataElements := make([]string, 0, 1)
 	length := len(data)
 	posIni := 0
-	lastPost := 0
 	chrIni := data[posIni]
 
 	for i, chr := range data {
@@ -221,13 +220,13 @@ func getElementsData(data string) []string {
 			for _, v := range dataElements {
 				tmpData = strings.TrimPrefix(tmpData, v)
 			}
-			lastPost = getLastPositionArrayStruct(tmpData) + posIni
+			lastPost := getLastPositionArrayStruct(tmpData) + posIni
 			str := data[posIni:lastPost]
 			dataElements = append(dataElements, str)
 			posIni = lastPost
 		} else if chr == closeBracket && i > posIni {
 			if chrIni != 'a' && chrIni != 's' {
-				lastPost = i + 1
+				lastPost := i + 1
 				dataElements = append(dataElements, data[posIni:lastPost])
 				posIni = lastPost
 			}
