@@ -86,6 +86,13 @@ func (c *client) getAttributeDescriptor(field reflect.StructField) (*dlms.Attrib
 func (c *client) getRequestWithUnmarshal(att *dlms.AttributeDescriptor, acc *dlms.SelectiveAccessDescriptor, data interface{}) (err error) {
 	axdrData, err := c.getRequest(att, acc)
 	if err != nil {
+		var dlmsErr *dlms.Error
+		if errors.As(err, &dlmsErr) && dlmsErr.Code() == dlms.ErrorPartialTransfer && data != nil {
+			if unmarshalErr := axdr.UnmarshalData(axdrData, data); unmarshalErr != nil {
+				return dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("error unmarshaling partial %s data: %v", att.String(), unmarshalErr))
+			}
+		}
+
 		return
 	}
 
@@ -146,6 +153,13 @@ func (c *client) getRequest(att *dlms.AttributeDescriptor, acc *dlms.SelectiveAc
 
 			pdu, err = c.encodeSendReceiveAndDecode(req)
 			if err != nil {
+				var commErr *dlms.Error
+				if len(out) > 0 && errors.As(err, &commErr) && commErr.Code() == dlms.ErrorCommunicationFailed {
+					if partial, decErr := axdr.DecodePartialArray(out); decErr == nil {
+						data = partial
+						err = dlms.NewError(dlms.ErrorPartialTransfer, err.Error())
+					}
+				}
 				return
 			}
 

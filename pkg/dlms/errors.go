@@ -19,6 +19,7 @@ const (
 	ErrorActionRejected
 	ErrorSetPartial
 	ErrorCheckDoesNotMatch
+	ErrorPartialTransfer
 )
 
 type Error struct {

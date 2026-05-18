@@ -231,6 +231,10 @@ func (dec *Decoder) Decode(ori *[]byte) (r DlmsData, err error) {
 }
 
 func getCompactArrayDecoders(src *[]byte) (outVal []Decoder, err error) {
+	if len(*src) < 1 {
+		err = ErrLengthLess
+		return
+	}
 	initType := (*src)[0]
 	if initType != byte(TagStructure) {
 		thisDecoder := NewDataDecoder(src)
@@ -242,6 +246,10 @@ func getCompactArrayDecoders(src *[]byte) (outVal []Decoder, err error) {
 		return
 	}
 
+	if len(*src) < 2 {
+		err = ErrLengthLess
+		return
+	}
 	numberOfStructParams := (*src)[1]
 	outVal = make([]Decoder, numberOfStructParams)
 
@@ -259,6 +267,10 @@ func getCompactArrayDecoders(src *[]byte) (outVal []Decoder, err error) {
 }
 
 func DecodeLength(src *[]byte) (outByte []byte, outVal uint64, err error) {
+	if len(*src) < 1 {
+		err = ErrLengthLess
+		return
+	}
 	if (*src)[0] > byte(128) {
 		lOfLength := int((*src)[0]) - 128 // L-of-length part
 		if len((*src)) < lOfLength+1 {
@@ -292,6 +304,73 @@ func DecodeLength(src *[]byte) (outByte []byte, outVal uint64, err error) {
 	}
 
 	return
+}
+
+// DecodePartialArray decodes as many complete array elements as possible from a
+// potentially truncated byte slice. It is useful when a multi-block transfer has
+// been interrupted: instead of failing because the declared element count cannot
+// be fulfilled, it returns the elements that were fully received.
+//
+// data must start with the TagArray byte (0x01). The returned DlmsData has
+// Tag = TagArray and Value = []*DlmsData with the successfully decoded elements,
+// matching the same shape as a value produced by Decode. If at least one element
+// is successfully decoded the returned error is nil; otherwise the decode error
+// is returned.
+func DecodePartialArray(data []byte) (DlmsData, error) {
+	src := make([]byte, len(data))
+	copy(src, data)
+
+	if len(src) < 1 {
+		return DlmsData{}, ErrLengthLess
+	}
+
+	tag, err := getDataTag(src[0])
+	if err != nil {
+		return DlmsData{}, err
+	}
+
+	if tag != TagArray {
+		return DlmsData{}, fmt.Errorf("DecodePartialArray: expected TagArray (0x01), got tag %d", src[0])
+	}
+
+	src = src[1:] // consume the tag byte
+
+	// Read the declared element count to use as capacity hint and upper bound.
+	_, declaredCount, err := DecodeLength(&src)
+	if err != nil {
+		return DlmsData{}, err
+	}
+
+	result := make([]*DlmsData, 0, declaredCount)
+	var lastErr error
+	for uint64(len(result)) < declaredCount && len(src) > 0 {
+		prevLen := len(src)
+
+		temp := src
+		dec := NewDataDecoder(&temp)
+		d, decErr := dec.Decode(&temp)
+		if decErr != nil {
+			lastErr = decErr
+			break
+		}
+
+		// Guard against zero-progress (e.g. unrecognised tag with no advance).
+		if len(temp) == prevLen {
+			break
+		}
+
+		result = append(result, &d)
+		src = temp
+	}
+
+	if len(result) == 0 {
+		if lastErr != nil {
+			return DlmsData{}, lastErr
+		}
+		return DlmsData{}, fmt.Errorf("DecodePartialArray: no elements decoded")
+	}
+
+	return DlmsData{Tag: TagArray, Value: result}, nil
 }
 
 func DecodeBoolean(src *[]byte) (outByte []byte, outVal bool, err error) {
@@ -403,6 +482,10 @@ func DecodeUTF8String(src *[]byte, length uint64) (outByte []byte, outVal string
 }
 
 func DecodeBCD(src *[]byte) (outByte []byte, outVal int8, err error) {
+	if len(*src) < 1 {
+		err = ErrLengthLess
+		return
+	}
 	outByte = (*src)[:1]
 	outVal = int8(outByte[0])
 	(*src) = (*src)[1:]
@@ -543,6 +626,10 @@ func DecodeLong64Unsigned(src *[]byte) (outByte []byte, outVal uint64, err error
 }
 
 func DecodeEnum(src *[]byte) (outByte []byte, outVal uint8, err error) {
+	if len(*src) < 1 {
+		err = ErrLengthLess
+		return
+	}
 	outByte = (*src)[:1]
 	outVal = outByte[0]
 	(*src) = (*src)[1:]
