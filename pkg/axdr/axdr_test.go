@@ -1167,3 +1167,71 @@ func TestDecoderComplexCompactArray(t *testing.T) {
 	assert.Equal(t, d7.Value, t5[2].Value)
 	assert.Equal(t, d8.Value, t5[3].Value)
 }
+func TestDecodePartialArray(t *testing.T) {
+	// Build an array of three Long (int16) elements: [100, 200, 300]
+	// Encoded bytes: 01 03 10 00 64 10 00 C8 10 01 2C
+	//   01        = TagArray
+	//   03        = 3 elements
+	//   10 00 64  = TagLong, 100
+	//   10 00 C8  = TagLong, 200
+	//   10 01 2C  = TagLong, 300
+	full := decodeHexString("01031000641000C810012C")
+	elem100 := int16(100)
+	elem200 := int16(200)
+	elem300 := int16(300)
+
+	t.Run("full array returns all elements", func(t *testing.T) {
+		result, err := DecodePartialArray(full)
+		require.NoError(t, err)
+		assert.Equal(t, TagArray, result.Tag)
+		elems := result.Value.([]*DlmsData)
+		require.Len(t, elems, 3)
+		assert.Equal(t, TagLong, elems[0].Tag)
+		assert.Equal(t, elem100, elems[0].Value)
+		assert.Equal(t, TagLong, elems[1].Tag)
+		assert.Equal(t, elem200, elems[1].Value)
+		assert.Equal(t, TagLong, elems[2].Tag)
+		assert.Equal(t, elem300, elems[2].Value)
+	})
+
+	t.Run("truncated after 2nd element returns 2 elements", func(t *testing.T) {
+		// Keep: 01 03 10 00 64 10 00 C8  (header + 2 elements, 3rd missing)
+		truncated := full[:8]
+		result, err := DecodePartialArray(truncated)
+		require.NoError(t, err)
+		assert.Equal(t, TagArray, result.Tag)
+		elems := result.Value.([]*DlmsData)
+		require.Len(t, elems, 2)
+		assert.Equal(t, elem100, elems[0].Value)
+		assert.Equal(t, elem200, elems[1].Value)
+	})
+
+	t.Run("truncated mid-element returns only complete elements", func(t *testing.T) {
+		// Keep: 01 03 10 00 64 10 00  (header + 1 full + 1 incomplete)
+		truncated := full[:7]
+		result, err := DecodePartialArray(truncated)
+		require.NoError(t, err)
+		assert.Equal(t, TagArray, result.Tag)
+		elems := result.Value.([]*DlmsData)
+		require.Len(t, elems, 1)
+		assert.Equal(t, elem100, elems[0].Value)
+	})
+
+	t.Run("only header returns error", func(t *testing.T) {
+		headerOnly := decodeHexString("0103")
+		_, err := DecodePartialArray(headerOnly)
+		assert.Error(t, err)
+	})
+
+	t.Run("wrong tag returns error", func(t *testing.T) {
+		// TagLong (0x10) instead of TagArray (0x01)
+		wrong := decodeHexString("100064")
+		_, err := DecodePartialArray(wrong)
+		assert.Error(t, err)
+	})
+
+	t.Run("empty slice returns error", func(t *testing.T) {
+		_, err := DecodePartialArray([]byte{})
+		assert.Error(t, err)
+	})
+}

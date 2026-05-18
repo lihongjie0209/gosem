@@ -306,6 +306,33 @@ func TestClient_CheckRequestWithStructOfElements(t *testing.T) {
 	tm.AssertExpectations(t)
 }
 
+func TestClient_GetRequest_InterruptedBlockTransfer(t *testing.T) {
+	c, tm, rdc := associate(t)
+
+	// Block 1 of expected 2: carries a partial array.
+	// Full array would be: TagArray(3 elems) + Long(100) + Long(200) + Long(300)
+	// Block 1 carries only the first 8 bytes: header + Long(100) + Long(200).
+	// Encoded request:  GetRequestNormal, class=8, OBIS=0-0:1.0.0.255, attr=3
+	// Encoded response: GetResponseWithDataBlock, block=1, lastBlock=false,
+	//                   data = 01 03 10 00 64 10 00 C8
+	sendReceive(tm, rdc, "C001C100080000010000FF0300", "C402C10000000001000801031000641000C8")
+
+	// GetRequestNext for block 1 → communication failure
+	tm.On("Send", decodeHexString("C002C100000001")).Return(fmt.Errorf("connection reset")).Once()
+	tm.On("IsConnected").Return(true).Once()
+
+	var data []int16
+	err := c.GetRequest(dlms.CreateAttributeDescriptor(8, "0-0:1.0.0.255", 3), &data)
+
+	var partialErr *dlms.Error
+	assert.ErrorAs(t, err, &partialErr)
+	assert.Equal(t, dlms.ErrorPartialTransfer, partialErr.Code())
+	// Two complete Long elements were recovered from the partial block.
+	assert.Equal(t, []int16{100, 200}, data)
+
+	tm.AssertExpectations(t)
+}
+
 func associate(t *testing.T) (dlms.Client, *mocks.TransportMock, dlms.DataChannel) {
 	t.Helper()
 
