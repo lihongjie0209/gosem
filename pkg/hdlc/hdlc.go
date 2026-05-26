@@ -13,6 +13,14 @@ import (
 	"gitlab.com/circutor-library/gosem/pkg/dlms"
 )
 
+type AddressingType int
+
+const (
+	AddressingOneByte   AddressingType = 1
+	AddressingTwoBytes  AddressingType = 2
+	AddressingFourBytes AddressingType = 4
+)
+
 const (
 	maxInfoFieldLength        = 512
 	defaultMaxInfoFieldLength = 128
@@ -52,6 +60,7 @@ type ReceivedFrame struct {
 
 type hdlc struct {
 	maxInfoFieldLengthSend int
+	addressing             AddressingType
 	upperAddress           int
 	lowerAddress           int
 	clientAddress          int
@@ -69,9 +78,10 @@ type hdlc struct {
 	mutex                  sync.Mutex
 }
 
-func New(transport dlms.Transport, replyTimeout time.Duration, retries int, interOctetTimeout time.Duration, address int, client int, server int) dlms.Transport {
+func New(transport dlms.Transport, replyTimeout time.Duration, retries int, interOctetTimeout time.Duration, address int, client int, server int, addressing AddressingType) dlms.Transport {
 	h := &hdlc{
 		maxInfoFieldLengthSend: maxInfoFieldLength,
+		addressing:             addressing,
 		upperAddress:           server,
 		lowerAddress:           address,
 		clientAddress:          client,
@@ -371,7 +381,7 @@ func (h *hdlc) searchFrame(frame *[]byte) *ReceivedFrame {
 }
 
 func (h *hdlc) parseFrame(src []byte) (*ReceivedFrame, error) {
-	if len(src) < 10 {
+	if len(src) < 9 {
 		return nil, fmt.Errorf("frame too short, have %d", len(src))
 	}
 
@@ -381,30 +391,71 @@ func (h *hdlc) parseFrame(src []byte) (*ReceivedFrame, error) {
 
 	isSegmented := (src[1] & 0x08) == 0x08
 
+	// Client address is always 1 byte (destination when server responds)
 	clientAddress := int(src[3]) >> 1
+	if src[3]&0x01 != 0x01 {
+		return nil, fmt.Errorf("invalid client address byte, expected LSB=1, have %02X", src[3])
+	}
+
 	if clientAddress != h.clientAddress {
 		return nil, fmt.Errorf("invalid client address, have %d, expected %d", clientAddress, h.clientAddress)
 	}
 
-	upperAddress := int(src[4]) >> 1
-	lowerAddress := int(src[5]) >> 1
+	// Server address: read bytes until one has LSB=1 (extension bit)
+	serverStart := 4
+	serverEnd := serverStart
+	for serverEnd < len(src) {
+		if src[serverEnd]&0x01 == 0x01 {
+			serverEnd++
+			break
+		}
+		serverEnd++
+	}
+
+	serverLen := serverEnd - serverStart
+	if serverLen == 0 || serverLen > 4 {
+		return nil, fmt.Errorf("invalid server address length: %d", serverLen)
+	}
+
+	// Decode server address fields
+	var upperAddress, lowerAddress int
+
+	switch serverLen {
+	case 1:
+		upperAddress = int(src[serverStart]) >> 1
+		lowerAddress = 0
+	case 2:
+		upperAddress = int(src[serverStart]) >> 1
+		lowerAddress = int(src[serverStart+1]) >> 1
+	case 4:
+		upperAddress = (int(src[serverStart])>>1)<<7 | int(src[serverStart+1])>>1
+		lowerAddress = (int(src[serverStart+2])>>1)<<7 | int(src[serverStart+3])>>1
+	default:
+		return nil, fmt.Errorf("unsupported server address length: %d", serverLen)
+	}
 
 	if upperAddress != h.upperAddress || lowerAddress != h.lowerAddress {
 		return nil, fmt.Errorf("invalid source address, have %d:%d", upperAddress, lowerAddress)
 	}
 
-	control := src[6]
-	hcs := binary.LittleEndian.Uint16(src[7:])
-	calculatedHCS := h.chksum(src[1:7])
+	controlIdx := serverEnd
+	if len(src) < controlIdx+3 {
+		return nil, fmt.Errorf("frame too short for control+HCS, have %d", len(src))
+	}
+
+	control := src[controlIdx]
+	hcs := binary.LittleEndian.Uint16(src[controlIdx+1:])
+	calculatedHCS := h.chksum(src[1 : controlIdx+1])
 	if hcs != calculatedHCS {
 		return nil, fmt.Errorf("HCS error, have %04X, expected %04X", hcs, calculatedHCS)
 	}
 
+	dataStart := controlIdx + 3
 	var data []byte
 	var fcs uint16
 
-	if len(src) > 12 {
-		data = src[9 : len(src)-3]
+	if len(src) > dataStart+3 {
+		data = src[dataStart : len(src)-3]
 		fcs = binary.LittleEndian.Uint16(src[len(src)-3:])
 		calculatedFCS := h.chksum(src[1 : len(src)-3])
 		if fcs != calculatedFCS {
@@ -457,7 +508,8 @@ func (h *hdlc) chksum(data []byte) uint16 {
 }
 
 func (h *hdlc) createFrame(control uint8, data []byte) []byte {
-	frame := make([]byte, 0, 12+len(data))
+	destLen := int(h.addressing)
+	frame := make([]byte, 0, 4+destLen+1+1+2+len(data)+2+1)
 
 	// Starting flag
 	frame = append(frame, startAndEndFlag)
@@ -466,17 +518,27 @@ func (h *hdlc) createFrame(control uint8, data []byte) []byte {
 	lenAndSeg := frameFormatField
 
 	if data != nil {
-		lenAndSeg |= 10 + len(data)
+		lenAndSeg |= destLen + 8 + len(data)
 	} else {
-		lenAndSeg |= 8
+		lenAndSeg |= destLen + 6
 	}
 
 	frame = append(frame, byte(lenAndSeg>>8))
 	frame = append(frame, byte(lenAndSeg))
 
-	// Destination address
-	frame = append(frame, byte(h.upperAddress<<1))
-	frame = append(frame, byte(h.lowerAddress<<1)|0x01)
+	// Destination address (server)
+	switch h.addressing {
+	case AddressingOneByte:
+		frame = append(frame, byte((h.upperAddress<<1)|0x01))
+	case AddressingTwoBytes:
+		frame = append(frame, byte(h.upperAddress<<1))
+		frame = append(frame, byte((h.lowerAddress<<1)|0x01))
+	case AddressingFourBytes:
+		frame = append(frame, byte((h.upperAddress>>7)<<1))
+		frame = append(frame, byte(h.upperAddress<<1))
+		frame = append(frame, byte((h.lowerAddress>>7)<<1))
+		frame = append(frame, byte((h.lowerAddress<<1)|0x01))
+	}
 
 	// Source address
 	frame = append(frame, byte(h.clientAddress<<1)|0x01)

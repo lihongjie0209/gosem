@@ -25,7 +25,7 @@ func TestHDLC_Connect(t *testing.T) {
 		rdc = args.Get(0).(dlms.DataChannel)
 	}).Once()
 
-	w := hdlc.New(transportMock, replyTimeout, 3, interOctetTimeout, 16, 73, 1)
+	w := hdlc.New(transportMock, replyTimeout, 3, interOctetTimeout, 16, 73, 1, hdlc.AddressingTwoBytes)
 
 	transportMock.On("Connect").Return(nil).Once()
 	sendReceive(transportMock, rdc, "7EA00802219393DBD87E", "7EA01F93022173BCAC8180120501F80601F00704000000010804000000013D9B7E")
@@ -53,7 +53,7 @@ func TestHDLC_ConnectWithoutNegotiation(t *testing.T) {
 		rdc = args.Get(0).(dlms.DataChannel)
 	}).Once()
 
-	w := hdlc.New(transportMock, replyTimeout, 3, interOctetTimeout, 16, 73, 1)
+	w := hdlc.New(transportMock, replyTimeout, 3, interOctetTimeout, 16, 73, 1, hdlc.AddressingTwoBytes)
 
 	transportMock.On("Connect").Return(nil).Once()
 	sendReceive(transportMock, rdc, "7EA00802219393DBD87E", "7EA0089302217320287E")
@@ -72,7 +72,7 @@ func TestHDLC_ConnectFail(t *testing.T) {
 	transportMock := mocks.NewTransportMock(t)
 
 	transportMock.On("SetReception", mock.Anything).Once()
-	w := hdlc.New(transportMock, replyTimeout, 3, interOctetTimeout, 16, 73, 1)
+	w := hdlc.New(transportMock, replyTimeout, 3, interOctetTimeout, 16, 73, 1, hdlc.AddressingTwoBytes)
 
 	transportMock.On("Connect").Return(assert.AnError).Once()
 	assert.Error(t, w.Connect())
@@ -96,7 +96,7 @@ func TestHDLC_SendAndReceive(t *testing.T) {
 		rdc = args.Get(0).(dlms.DataChannel)
 	}).Once()
 
-	w := hdlc.New(transportMock, replyTimeout, 3, interOctetTimeout, 16, 2, 1)
+	w := hdlc.New(transportMock, replyTimeout, 3, interOctetTimeout, 16, 2, 1, hdlc.AddressingTwoBytes)
 	w.SetReception(hdc)
 
 	transportMock.On("Connect").Return(nil).Once()
@@ -112,6 +112,64 @@ func TestHDLC_SendAndReceive(t *testing.T) {
 	sendReceive(transportMock, rdc, "7EA01A022105321D83E6E600C001C100010100000200FF02004BBB7E", "7EA01805022152BE09E6E700C401C10009055630343131F6B67E")
 	assert.NoError(t, w.Send(decodeHexString("C001C100010100000200FF0200")))
 	assert.Equal(t, decodeHexString("C401C10009055630343131"), <-hdc)
+
+	transportMock.On("Close").Return(nil).Once()
+	w.Close()
+
+	transportMock.AssertExpectations(t)
+}
+
+func TestHDLC_OneByte_Connect(t *testing.T) {
+	transportMock := mocks.NewTransportMock(t)
+
+	rdc := make(dlms.DataChannel, 10)
+	transportMock.On("SetReception", mock.Anything).Run(func(args mock.Arguments) {
+		rdc = args.Get(0).(dlms.DataChannel)
+	}).Once()
+
+	// lowerAddress=0 (unused in 1-byte mode), clientAddress=73, upperAddress=1
+	w := hdlc.New(transportMock, replyTimeout, 3, interOctetTimeout, 0, 73, 1, hdlc.AddressingOneByte)
+
+	transportMock.On("Connect").Return(nil).Once()
+	sendReceive(transportMock, rdc, "7ea007039393d1087e", "7ea007930373fb7f7e")
+	assert.NoError(t, w.Connect())
+
+	transportMock.On("IsConnected").Return(true).Once()
+	assert.True(t, w.IsConnected())
+
+	transportMock.On("IsConnected").Return(true).Once()
+	transportMock.On("Disconnect").Return(nil).Once()
+	sendReceive(transportMock, rdc, "7ea007039353ddce7e", "7ea007930373fb7f7e")
+	assert.NoError(t, w.Disconnect())
+
+	transportMock.On("Close").Return(nil).Once()
+	w.Close()
+
+	transportMock.AssertExpectations(t)
+}
+
+func TestHDLC_FourBytes_Connect(t *testing.T) {
+	transportMock := mocks.NewTransportMock(t)
+
+	rdc := make(dlms.DataChannel, 10)
+	transportMock.On("SetReception", mock.Anything).Run(func(args mock.Arguments) {
+		rdc = args.Get(0).(dlms.DataChannel)
+	}).Once()
+
+	// lowerAddress=16, clientAddress=2, upperAddress=1
+	w := hdlc.New(transportMock, replyTimeout, 3, interOctetTimeout, 16, 2, 1, hdlc.AddressingFourBytes)
+
+	transportMock.On("Connect").Return(nil).Once()
+	sendReceive(transportMock, rdc, "7ea00a000200210593f3807e", "7ea00a05000200217330417e")
+	assert.NoError(t, w.Connect())
+
+	transportMock.On("IsConnected").Return(true).Once()
+	assert.True(t, w.IsConnected())
+
+	transportMock.On("IsConnected").Return(true).Once()
+	transportMock.On("Disconnect").Return(nil).Once()
+	sendReceive(transportMock, rdc, "7ea00a000200210553ff467e", "7ea00a05000200217330417e")
+	assert.NoError(t, w.Disconnect())
 
 	transportMock.On("Close").Return(nil).Once()
 	w.Close()
