@@ -117,7 +117,6 @@ func (h *hdlc) Close() {
 	}
 
 	close(h.fc)
-	close(h.tc)
 }
 
 func (h *hdlc) Connect() error {
