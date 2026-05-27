@@ -132,19 +132,26 @@ func (h *hdlc) Connect() error {
 	h.sss = 0
 
 	frameToSend := h.createFrame(controlSNRM, nil)
+	retries := 0
+	var lastErr error
 
-	rf, err := h.sendReceive(frameToSend)
-	if err != nil {
-		return fmt.Errorf("send error: %w", err)
+	for {
+		rf, err := h.sendReceive(frameToSend)
+		if err == nil {
+			err = h.handleConnectReply(rf)
+		}
+
+		if err == nil {
+			return nil
+		}
+
+		lastErr = err
+		retries++
+		if retries > h.retries {
+			h.transport.Disconnect()
+			return fmt.Errorf("maximum retries reached: %w", lastErr)
+		}
 	}
-
-	err = h.handleConnectReply(rf)
-	if err != nil {
-		h.transport.Disconnect()
-		return fmt.Errorf("connect error: %w", err)
-	}
-
-	return nil
 }
 
 func (h *hdlc) Disconnect() error {

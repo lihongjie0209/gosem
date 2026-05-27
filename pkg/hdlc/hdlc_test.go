@@ -68,6 +68,27 @@ func TestHDLC_ConnectWithoutNegotiation(t *testing.T) {
 	transportMock.AssertExpectations(t)
 }
 
+func TestHDLC_ConnectWithRetry(t *testing.T) {
+	transportMock := mocks.NewTransportMock(t)
+
+	rdc := make(dlms.DataChannel, 10)
+	transportMock.On("SetReception", mock.Anything).Run(func(args mock.Arguments) {
+		rdc = args.Get(0).(dlms.DataChannel)
+	}).Once()
+
+	w := hdlc.New(transportMock, replyTimeout, 3, interOctetTimeout, 16, 73, 1, hdlc.AddressingTwoBytes)
+
+	transportMock.On("Connect").Return(nil).Once()
+	sendWithoutReceive(transportMock, "7EA00802219393DBD87E")
+	sendReceive(transportMock, rdc, "7EA00802219393DBD87E", "7EA0089302217320287E")
+	assert.NoError(t, w.Connect())
+
+	transportMock.On("Close").Return(nil).Once()
+	w.Close()
+
+	transportMock.AssertExpectations(t)
+}
+
 func TestHDLC_ConnectFail(t *testing.T) {
 	transportMock := mocks.NewTransportMock(t)
 
@@ -183,6 +204,10 @@ func sendReceive(tm *mocks.TransportMock, rdc dlms.DataChannel, in string, out s
 			rdc <- decodeHexString(out)
 		}
 	}).Return(nil).Once()
+}
+
+func sendWithoutReceive(tm *mocks.TransportMock, in string) {
+	tm.On("Send", decodeHexString(in)).Return(nil).Once()
 }
 
 func decodeHexString(s string) []byte {

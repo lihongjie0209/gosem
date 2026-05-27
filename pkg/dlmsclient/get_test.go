@@ -40,6 +40,13 @@ func TestClient_GetRequestFail(t *testing.T) {
 	assert.ErrorAs(t, err, &clientError)
 	assert.Equal(t, dlms.ErrorGetRejected, clientError.Code())
 
+	// Exception response
+	sendReceive(tm, rdc, "C001C100080000010000FF0300", "D80102")
+
+	err = c.GetRequest(clockAttributeDescriptor, &data)
+	assert.ErrorAs(t, err, &clientError)
+	assert.Equal(t, dlms.ErrorGetRejected, clientError.Code())
+
 	// Unexpected response
 	sendReceive(tm, rdc, "C001C100080000010000FF0300", "0E010203")
 
