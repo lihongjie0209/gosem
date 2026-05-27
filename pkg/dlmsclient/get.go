@@ -177,6 +177,8 @@ func (c *client) getRequest(att *dlms.AttributeDescriptor, acc *dlms.SelectiveAc
 			err = dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("error decoding %s data: %v", att.String(), err))
 			return
 		}
+	case dlms.ExceptionResponse:
+		err = dlms.NewError(dlms.ErrorGetRejected, fmt.Sprintf("get %s rejected (exception %d - %d)", att.String(), resp.StateError, resp.ServiceError))
 	default:
 		err = dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("in %s unexpected PDU response type: %T", att.String(), pdu))
 	}
