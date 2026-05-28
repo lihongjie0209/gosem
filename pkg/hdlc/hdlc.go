@@ -145,6 +145,10 @@ func (h *hdlc) Connect() error {
 			return nil
 		}
 
+		if !h.transport.IsConnected() {
+			return fmt.Errorf("disconnected while waiting for response: %w", err)
+		}
+
 		lastErr = err
 		retries++
 		if retries > h.retries {
@@ -265,6 +269,10 @@ func (h *hdlc) Send(src []byte) error {
 			remoteReady = true
 		default:
 			return fmt.Errorf("unexpected frame with control %02X", rf.Control)
+		}
+
+		if !h.transport.IsConnected() {
+			return fmt.Errorf("disconnected while waiting for response: %w", err)
 		}
 
 		retries++

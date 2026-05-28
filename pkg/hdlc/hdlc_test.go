@@ -80,6 +80,7 @@ func TestHDLC_ConnectWithRetry(t *testing.T) {
 
 	transportMock.On("Connect").Return(nil).Once()
 	sendWithoutReceive(transportMock, "7EA00802219393DBD87E")
+	transportMock.On("IsConnected").Return(true).Once()
 	sendReceive(transportMock, rdc, "7EA00802219393DBD87E", "7EA0089302217320287E")
 	assert.NoError(t, w.Connect())
 

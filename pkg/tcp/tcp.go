@@ -26,6 +26,7 @@ type tcp struct {
 	conn        net.Conn
 	isConnected bool
 	logger      *log.Logger
+	managerDone chan struct{}
 	mutex       sync.Mutex
 }
 
@@ -38,6 +39,7 @@ func New(port int, host string, timeout time.Duration) dlms.Transport {
 		conn:        nil,
 		isConnected: false,
 		logger:      nil,
+		managerDone: nil,
 		mutex:       sync.Mutex{},
 	}
 
@@ -46,9 +48,17 @@ func New(port int, host string, timeout time.Duration) dlms.Transport {
 
 func (t *tcp) Close() {
 	t.mutex.Lock()
+	t.disconnect()
+	done := t.managerDone
+	t.mutex.Unlock()
+
+	if done != nil {
+		<-done
+	}
+
+	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
-	t.disconnect()
 	if t.dc != nil {
 		close(t.dc)
 		t.dc = nil
@@ -76,9 +86,10 @@ func (t *tcp) Connect() error {
 		}
 
 		t.conn = conn
+		t.managerDone = make(chan struct{})
 		t.isConnected = true
 
-		go t.manager()
+		go t.manager(t.conn, t.managerDone)
 	}
 
 	return nil
@@ -86,9 +97,13 @@ func (t *tcp) Connect() error {
 
 func (t *tcp) Disconnect() error {
 	t.mutex.Lock()
-	defer t.mutex.Unlock()
-
 	t.disconnect()
+	done := t.managerDone
+	t.mutex.Unlock()
+
+	if done != nil {
+		<-done
+	}
 
 	return nil
 }
@@ -144,16 +159,24 @@ func (t *tcp) SetLogger(logger *log.Logger) {
 	t.logger = logger
 }
 
-func (t *tcp) manager() {
+func (t *tcp) manager(conn net.Conn, done chan struct{}) {
+	defer close(done)
+
 	for {
-		if !t.isConnected {
+		t.mutex.Lock()
+		if !t.isConnected || t.conn != conn {
+			t.mutex.Unlock()
+
 			return
 		}
+		t.mutex.Unlock()
 
-		data, err := t.read()
+		data, err := t.read(conn)
 		if err != nil {
 			t.mutex.Lock()
-			t.disconnect()
+			if t.conn == conn {
+				t.disconnect()
+			}
 			t.mutex.Unlock()
 
 			return
@@ -180,10 +203,9 @@ func (t *tcp) disconnect() {
 	}
 }
 
-func (t *tcp) read() ([]byte, error) {
+func (t *tcp) read(conn net.Conn) ([]byte, error) {
 	rxBuffer := make([]byte, maxLength)
 
-	conn := t.conn
 	if conn == nil {
 		return nil, fmt.Errorf("connection is nil")
 	}
