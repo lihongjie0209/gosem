@@ -34,12 +34,13 @@ const (
 	startAndEndFlag  = 0x7E
 	frameFormatField = 0xA000
 
-	controlI    = 0x00 // Information
-	controlRR   = 0x01 // Receive Ready
-	controlSNRM = 0x93 // Set Normal Response Mode
-	controlDISC = 0x53 // Disconnect
-	controlUA   = 0x73 // Unnumbered Acknowledge
-	controlDM   = 0x1F // Disconnect Mode
+	ControlI    = 0x00 // Information
+	ControlRR   = 0x01 // Receive Ready
+	ControlUI   = 0x13 // Unnumbered Information
+	ControlSNRM = 0x93 // Set Normal Response Mode
+	ControlDISC = 0x53 // Disconnect
+	ControlUA   = 0x73 // Unnumbered Acknowledge
+	ControlDM   = 0x1F // Disconnect Mode
 
 	controlMaskI  = 0x01
 	controlMaskRR = 0x0F
@@ -69,7 +70,6 @@ type hdlc struct {
 	interOctetTimeout      time.Duration
 	rrr                    int
 	sss                    int
-	fcsTable               [256]uint16
 	transport              dlms.Transport
 	dc                     dlms.DataChannel
 	tc                     dlms.DataChannel
@@ -90,7 +90,6 @@ func New(transport dlms.Transport, replyTimeout time.Duration, retries int, inte
 		interOctetTimeout:      interOctetTimeout,
 		rrr:                    0,
 		sss:                    0,
-		fcsTable:               generateFCSTable(),
 		transport:              transport,
 		dc:                     nil,
 		tc:                     make(dlms.DataChannel, 10),
@@ -131,7 +130,7 @@ func (h *hdlc) Connect() error {
 	h.rrr = 0
 	h.sss = 0
 
-	frameToSend := h.createFrame(controlSNRM, nil)
+	frameToSend := h.createFrame(ControlSNRM, nil)
 	retries := 0
 	var lastErr error
 
@@ -168,14 +167,14 @@ func (h *hdlc) Disconnect() error {
 
 	defer h.transport.Disconnect()
 
-	frameToSend := h.createFrame(controlDISC, nil)
+	frameToSend := h.createFrame(ControlDISC, nil)
 
 	rf, err := h.sendReceive(frameToSend)
 	if err != nil {
 		return fmt.Errorf("send error: %w", err)
 	}
 
-	if rf.Control != controlUA && rf.Control != controlDM {
+	if rf.Control != ControlUA && rf.Control != ControlDM {
 		return fmt.Errorf("invalid control byte, have %02X", rf.Control)
 	}
 
@@ -235,13 +234,13 @@ func (h *hdlc) Send(src []byte) error {
 		// Send I frame if remote is ready, otherwise send RR frame
 		if remoteReady {
 			// Create control byte for I Frame
-			control := uint8((h.rrr << 5) | (h.sss << 1) | finalWindowBit | controlI)
+			control := uint8((h.rrr << 5) | (h.sss << 1) | finalWindowBit | ControlI)
 			h.sss = h.increaseSequenceNumber(h.sss)
 
 			frameToSend = h.createFrame(control, src)
 		} else {
 			// Create control byte for RR Frame
-			control := uint8((h.rrr << 5) | finalWindowBit | controlRR)
+			control := uint8((h.rrr << 5) | finalWindowBit | ControlRR)
 
 			frameToSend = h.createFrame(control, nil)
 		}
@@ -252,7 +251,7 @@ func (h *hdlc) Send(src []byte) error {
 		case err != nil || rf == nil:
 			// Nothing valid received
 			remoteReady = false
-		case (rf.Control & controlMaskI) == controlI:
+		case (rf.Control & controlMaskI) == ControlI:
 			// I frame
 			if err = h.handleDataReply(rf); err == nil {
 				// Everything is ok
@@ -260,7 +259,7 @@ func (h *hdlc) Send(src []byte) error {
 			}
 
 			remoteReady = false
-		case (rf.Control & controlMaskRR) == controlRR:
+		case (rf.Control & controlMaskRR) == ControlRR:
 			// RR frame
 			if sss := int(rf.Control>>5) & 0x07; sss != h.sss {
 				h.sss = h.decreaseSequenceNumber(h.sss)
@@ -342,40 +341,12 @@ func (h *hdlc) manager() {
 }
 
 func (h *hdlc) searchFrame(frame *[]byte) *ReceivedFrame {
-	// Search for the start flag
-	for i, b := range *frame {
-		if b == startAndEndFlag {
-			*frame = (*frame)[i:]
-			break
-		}
-	}
+	src, rest := NextFrame(*frame)
+	*frame = rest
 
-	// If no start flag is found, return nil and flush the buffer
-	if len(*frame) == 0 || (*frame)[0] != startAndEndFlag {
-		*frame = make([]byte, 0, maxFrameLength)
+	if src == nil {
 		return nil
 	}
-
-	// Check minimum frame length
-	if len(*frame) < 9 {
-		return nil
-	}
-
-	// Check if the frame is long enough
-	length := int(binary.BigEndian.Uint16((*frame)[1:]) & 0x07FF)
-	if len(*frame) < length+2 {
-		return nil
-	}
-
-	// Check end flag, if it is not found, return nil and remove the start flag
-	if (*frame)[length+1] != startAndEndFlag {
-		*frame = (*frame)[1:]
-		return nil
-	}
-
-	// Remove the frame from the buffer
-	src := (*frame)[:length+2]
-	*frame = (*frame)[length+2:]
 
 	if h.logger != nil {
 		h.logger.Printf("RX: %s", encodeHexString(src))
@@ -395,190 +366,24 @@ func (h *hdlc) searchFrame(frame *[]byte) *ReceivedFrame {
 }
 
 func (h *hdlc) parseFrame(src []byte) (*ReceivedFrame, error) {
-	if len(src) < 9 {
-		return nil, fmt.Errorf("frame too short, have %d", len(src))
+	rf, err := ParseFrame(src)
+	if err != nil {
+		return nil, err
 	}
 
-	if (src[1] & 0xF0) != 0xA0 {
-		return nil, fmt.Errorf("invalid frame format, have %02X", src[1])
+	if rf.ClientAddress != h.clientAddress {
+		return nil, fmt.Errorf("invalid client address, have %d, expected %d", rf.ClientAddress, h.clientAddress)
 	}
 
-	isSegmented := (src[1] & 0x08) == 0x08
-
-	// Client address is always 1 byte (destination when server responds)
-	clientAddress := int(src[3]) >> 1
-	if src[3]&0x01 != 0x01 {
-		return nil, fmt.Errorf("invalid client address byte, expected LSB=1, have %02X", src[3])
+	if rf.UpperAddress != h.upperAddress || rf.LowerAddress != h.lowerAddress {
+		return nil, fmt.Errorf("invalid source address, have %d:%d", rf.UpperAddress, rf.LowerAddress)
 	}
 
-	if clientAddress != h.clientAddress {
-		return nil, fmt.Errorf("invalid client address, have %d, expected %d", clientAddress, h.clientAddress)
-	}
-
-	// Server address: read bytes until one has LSB=1 (extension bit)
-	serverStart := 4
-	serverEnd := serverStart
-	for serverEnd < len(src) {
-		if src[serverEnd]&0x01 == 0x01 {
-			serverEnd++
-			break
-		}
-		serverEnd++
-	}
-
-	serverLen := serverEnd - serverStart
-	if serverLen == 0 || serverLen > 4 {
-		return nil, fmt.Errorf("invalid server address length: %d", serverLen)
-	}
-
-	// Decode server address fields
-	var upperAddress, lowerAddress int
-
-	switch serverLen {
-	case 1:
-		upperAddress = int(src[serverStart]) >> 1
-		lowerAddress = 0
-	case 2:
-		upperAddress = int(src[serverStart]) >> 1
-		lowerAddress = int(src[serverStart+1]) >> 1
-	case 4:
-		upperAddress = (int(src[serverStart])>>1)<<7 | int(src[serverStart+1])>>1
-		lowerAddress = (int(src[serverStart+2])>>1)<<7 | int(src[serverStart+3])>>1
-	default:
-		return nil, fmt.Errorf("unsupported server address length: %d", serverLen)
-	}
-
-	if upperAddress != h.upperAddress || lowerAddress != h.lowerAddress {
-		return nil, fmt.Errorf("invalid source address, have %d:%d", upperAddress, lowerAddress)
-	}
-
-	controlIdx := serverEnd
-	if len(src) < controlIdx+3 {
-		return nil, fmt.Errorf("frame too short for control+HCS, have %d", len(src))
-	}
-
-	control := src[controlIdx]
-	hcs := binary.LittleEndian.Uint16(src[controlIdx+1:])
-	calculatedHCS := h.chksum(src[1 : controlIdx+1])
-	if hcs != calculatedHCS {
-		return nil, fmt.Errorf("HCS error, have %04X, expected %04X", hcs, calculatedHCS)
-	}
-
-	dataStart := controlIdx + 3
-	var data []byte
-	var fcs uint16
-
-	if len(src) > dataStart+3 {
-		data = src[dataStart : len(src)-3]
-		fcs = binary.LittleEndian.Uint16(src[len(src)-3:])
-		calculatedFCS := h.chksum(src[1 : len(src)-3])
-		if fcs != calculatedFCS {
-			return nil, fmt.Errorf("FCS error, have %04X, expected %04X", fcs, calculatedFCS)
-		}
-	} else {
-		data = nil
-		fcs = hcs
-	}
-
-	receivedFrame := &ReceivedFrame{
-		UpperAddress:  upperAddress,
-		LowerAddress:  lowerAddress,
-		ClientAddress: clientAddress,
-		Control:       control,
-		IsSegmented:   isSegmented,
-		Data:          data,
-		HCS:           hcs,
-		FCS:           fcs,
-	}
-
-	return receivedFrame, nil
-}
-
-func generateFCSTable() [256]uint16 {
-	var table [256]uint16
-	for i := 0; i < 256; i++ {
-		crc := uint16(i)
-		for j := 0; j < 8; j++ {
-			if crc&1 != 0 {
-				crc = (crc >> 1) ^ 0x8408
-			} else {
-				crc >>= 1
-			}
-		}
-		table[i] = crc
-	}
-
-	return table
-}
-
-func (h *hdlc) chksum(data []byte) uint16 {
-	fcs := uint16(0xFFFF)
-
-	for _, b := range data {
-		fcs = (fcs >> 8) ^ h.fcsTable[(fcs^uint16(b))&0xFF]
-	}
-
-	return fcs ^ 0xFFFF
+	return rf, nil
 }
 
 func (h *hdlc) createFrame(control uint8, data []byte) []byte {
-	destLen := int(h.addressing)
-	frame := make([]byte, 0, 4+destLen+1+1+2+len(data)+2+1)
-
-	// Starting flag
-	frame = append(frame, startAndEndFlag)
-
-	// Frame format, segmentation and length
-	lenAndSeg := frameFormatField
-
-	if data != nil {
-		lenAndSeg |= destLen + 8 + len(data)
-	} else {
-		lenAndSeg |= destLen + 6
-	}
-
-	frame = append(frame, byte(lenAndSeg>>8))
-	frame = append(frame, byte(lenAndSeg))
-
-	// Destination address (server)
-	switch h.addressing {
-	case AddressingOneByte:
-		frame = append(frame, byte((h.upperAddress<<1)|0x01))
-	case AddressingTwoBytes:
-		frame = append(frame, byte(h.upperAddress<<1))
-		frame = append(frame, byte((h.lowerAddress<<1)|0x01))
-	case AddressingFourBytes:
-		frame = append(frame, byte((h.upperAddress>>7)<<1))
-		frame = append(frame, byte(h.upperAddress<<1))
-		frame = append(frame, byte((h.lowerAddress>>7)<<1))
-		frame = append(frame, byte((h.lowerAddress<<1)|0x01))
-	}
-
-	// Source address
-	frame = append(frame, byte(h.clientAddress<<1)|0x01)
-
-	// Control byte
-	frame = append(frame, control)
-
-	// HCS
-	checksum := h.chksum(frame[1:])
-	frame = append(frame, byte(checksum))
-	frame = append(frame, byte(checksum>>8))
-
-	// Data
-	if data != nil {
-		frame = append(frame, data...)
-
-		// FCS
-		checksum = h.chksum(frame[1:])
-		frame = append(frame, byte(checksum))
-		frame = append(frame, byte(checksum>>8))
-	}
-
-	// Closing flag
-	frame = append(frame, startAndEndFlag)
-
-	return frame
+	return BuildFrame(h.addressing, h.clientAddress, h.upperAddress, h.lowerAddress, control, data)
 }
 
 func (h *hdlc) sendReceive(src []byte) (*ReceivedFrame, error) {
@@ -604,8 +409,8 @@ func (h *hdlc) sendReceive(src []byte) (*ReceivedFrame, error) {
 }
 
 func (h *hdlc) handleConnectReply(rf *ReceivedFrame) error {
-	if rf.Control != controlUA {
-		return fmt.Errorf("invalid control byte, have %02X, expected %02X", rf.Control, controlUA)
+	if rf.Control != ControlUA {
+		return fmt.Errorf("invalid control byte, have %02X, expected %02X", rf.Control, ControlUA)
 	}
 
 	data := rf.Data
