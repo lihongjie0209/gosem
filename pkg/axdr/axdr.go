@@ -170,7 +170,7 @@ func (d *DlmsData) Encode() (out []byte, err error) {
 
 	switch d.Tag {
 	case TagNull:
-		rawValue = []byte{0}
+		rawValue = []byte{}
 
 	case TagArray:
 		data, ok := d.Value.([]*DlmsData)
