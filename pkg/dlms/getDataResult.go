@@ -166,8 +166,11 @@ func (dt DataBlockG) Encode() (out []byte, err error) {
 	} else {
 		buf.WriteByte(0x0)
 		value := dt.Result.([]byte)
-		// not sure if length is limited only 1 byte, or does it follow KLV as in axdr
-		buf.WriteByte(byte(len(value)))
+		length, lengthErr := axdr.EncodeLength(len(value))
+		if lengthErr != nil {
+			return nil, lengthErr
+		}
+		buf.Write(length)
 		buf.Write(value)
 	}
 
@@ -218,7 +221,13 @@ func DecodeDataBlockG(ori *[]byte) (out DataBlockG, err error) {
 		out.Result, err = GetAccessTag(src[0])
 		src = src[1:]
 	} else {
-		_, val, _ := axdr.DecodeLength(&src)
+		_, val, lengthErr := axdr.DecodeLength(&src)
+		if lengthErr != nil || val > uint64(len(src)) {
+			if lengthErr != nil {
+				return out, lengthErr
+			}
+			return out, fmt.Errorf("data block length %d exceeds remaining bytes %d", val, len(src))
+		}
 		out.Result = src[:val]
 		src = src[val:]
 	}
@@ -292,10 +301,15 @@ func DecodeDataBlockSA(ori *[]byte) (out DataBlockSA, err error) {
 
 	_, out.BlockNumber, err = axdr.DecodeDoubleLongUnsigned(&src)
 
-	// not sure if length is limited only 1 byte, or does it follow KLV as in axdr
-	val := src[0]
-	out.Raw = src[1 : val+1]
-	src = src[val+1:]
+	_, val, lengthErr := axdr.DecodeLength(&src)
+	if lengthErr != nil || val > uint64(len(src)) {
+		if lengthErr != nil {
+			return out, lengthErr
+		}
+		return out, fmt.Errorf("data block length %d exceeds remaining bytes %d", val, len(src))
+	}
+	out.Raw = src[:val]
+	src = src[val:]
 
 	(*ori) = (*ori)[len((*ori))-len(src):]
 	return
