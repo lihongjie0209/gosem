@@ -227,6 +227,8 @@ func (h *hdlc) Send(src []byte) error {
 
 	retries := 0
 	remoteReady := true
+	firstResponseFrame := true
+	response := make([]byte, 0, maxDataLength)
 
 	for {
 		var frameToSend []byte
@@ -253,9 +255,27 @@ func (h *hdlc) Send(src []byte) error {
 			remoteReady = false
 		case (rf.Control & controlMaskI) == ControlI:
 			// I frame
-			if err = h.handleDataReply(rf); err == nil {
-				// Everything is ok
-				return nil
+			var data []byte
+			var complete bool
+			data, complete, err = h.handleDataReply(rf, firstResponseFrame)
+			if err == nil {
+				if len(response)+len(data) > maxDataLength {
+					return fmt.Errorf("segmented response is too long")
+				}
+				response = append(response, data...)
+				firstResponseFrame = false
+				if complete {
+					if h.dc != nil {
+						h.dc <- response
+					}
+					return nil
+				}
+
+				// A valid segmented response is normal flow, not a retry. Ask for
+				// the next I frame and reset the transient failure budget.
+				remoteReady = false
+				retries = 0
+				continue
 			}
 
 			remoteReady = false
@@ -466,29 +486,30 @@ func (h *hdlc) handleConnectReply(rf *ReceivedFrame) error {
 	return nil
 }
 
-func (h *hdlc) handleDataReply(rf *ReceivedFrame) error {
+func (h *hdlc) handleDataReply(rf *ReceivedFrame, first bool) ([]byte, bool, error) {
 	rrr := int(rf.Control>>1) & 0x07
 	sss := int(rf.Control>>5) & 0x07
 
 	if rrr != h.rrr || sss != h.sss {
-		return fmt.Errorf("invalid control byte, have %02X, expected %02X", rf.Control, (h.rrr<<5)|(h.sss<<1))
+		return nil, false, fmt.Errorf("invalid control byte, have %02X, expected %02X", rf.Control, (h.rrr<<5)|(h.sss<<1))
 	}
 
 	h.rrr = h.increaseSequenceNumber(h.rrr)
 
-	if len(rf.Data) < 3 {
-		return fmt.Errorf("invalid I frame data, have %d", len(rf.Data))
+	data := rf.Data
+	if first {
+		if len(data) < 3 {
+			return nil, false, fmt.Errorf("invalid I frame data, have %d", len(data))
+		}
+		if data[0] != 0xE6 || data[1] != 0xE7 || data[2] != 0x00 {
+			return nil, false, fmt.Errorf("invalid I frame data, have %02X:%02X:%02X", data[0], data[1], data[2])
+		}
+		data = data[3:]
+	} else if len(data) == 0 {
+		return nil, false, errors.New("segmented I frame has no data")
 	}
 
-	if rf.Data[0] != 0xE6 || rf.Data[1] != 0xE7 || rf.Data[2] != 0x00 {
-		return fmt.Errorf("invalid I frame data, have %02X:%02X:%02X", rf.Data[0], rf.Data[1], rf.Data[2])
-	}
-
-	if h.dc != nil {
-		h.dc <- rf.Data[3:]
-	}
-
-	return nil
+	return data, !rf.IsSegmented, nil
 }
 
 func encodeHexString(b []byte) string {

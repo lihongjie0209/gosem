@@ -1,6 +1,7 @@
 package hdlc_test
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"testing"
 	"time"
@@ -141,6 +142,43 @@ func TestHDLC_SendAndReceive(t *testing.T) {
 	transportMock.AssertExpectations(t)
 }
 
+func TestHDLC_ReassemblesSegmentedResponse(t *testing.T) {
+	transportMock := mocks.NewTransportMock(t)
+	rdc := make(dlms.DataChannel, 10)
+	hdc := make(dlms.DataChannel, 1)
+	transportMock.On("SetReception", mock.Anything).Run(func(args mock.Arguments) {
+		rdc = args.Get(0).(dlms.DataChannel)
+	}).Once()
+
+	w := hdlc.New(transportMock, replyTimeout, 1, interOctetTimeout, 0, 2, 1, hdlc.AddressingOneByte)
+	w.SetReception(hdc)
+	transportMock.On("Connect").Return(nil).Once()
+	sendReceiveBytes(transportMock, rdc,
+		hdlc.BuildFrame(hdlc.AddressingOneByte, 2, 1, 0, hdlc.ControlSNRM, nil),
+		buildServerFrame(2, 1, hdlc.ControlUA, false, nil))
+	assert.NoError(t, w.Connect())
+
+	payload := make([]byte, 180)
+	for index := range payload {
+		payload[index] = byte(index)
+	}
+	first := append([]byte{0xE6, 0xE7, 0x00}, payload[:60]...)
+	second := payload[60:]
+	transportMock.On("IsConnected").Return(true).Once()
+	sendReceiveBytes(transportMock, rdc,
+		hdlc.BuildFrame(hdlc.AddressingOneByte, 2, 1, 0, 0x10, []byte{0xE6, 0xE6, 0x00, 0xC0}),
+		buildServerFrame(2, 1, 0x30, true, first))
+	sendReceiveBytes(transportMock, rdc,
+		hdlc.BuildFrame(hdlc.AddressingOneByte, 2, 1, 0, 0x31, nil),
+		buildServerFrame(2, 1, 0x32, false, second))
+	assert.NoError(t, w.Send([]byte{0xC0}))
+	assert.Equal(t, payload, <-hdc)
+
+	transportMock.On("Close").Return(nil).Once()
+	w.Close()
+	transportMock.AssertExpectations(t)
+}
+
 func TestHDLC_OneByte_Connect(t *testing.T) {
 	transportMock := mocks.NewTransportMock(t)
 
@@ -205,6 +243,32 @@ func sendReceive(tm *mocks.TransportMock, rdc dlms.DataChannel, in string, out s
 			rdc <- decodeHexString(out)
 		}
 	}).Return(nil).Once()
+}
+
+func sendReceiveBytes(tm *mocks.TransportMock, rdc dlms.DataChannel, in, out []byte) {
+	tm.On("Send", in).Run(func(_ mock.Arguments) {
+		rdc <- out
+	}).Return(nil).Once()
+}
+
+func buildServerFrame(client, server int, control uint8, segmented bool, data []byte) []byte {
+	length := 7
+	if data != nil {
+		length += len(data) + 2
+	}
+	format := 0xA000 | length
+	if segmented {
+		format |= 0x0800
+	}
+	frame := []byte{0x7E, byte(format >> 8), byte(format), byte(client<<1) | 1, byte(server<<1) | 1, control}
+	checksum := hdlc.FCS(frame[1:])
+	frame = binary.LittleEndian.AppendUint16(frame, checksum)
+	if data != nil {
+		frame = append(frame, data...)
+		checksum = hdlc.FCS(frame[1:])
+		frame = binary.LittleEndian.AppendUint16(frame, checksum)
+	}
+	return append(frame, 0x7E)
 }
 
 func sendWithoutReceive(tm *mocks.TransportMock, in string) {
