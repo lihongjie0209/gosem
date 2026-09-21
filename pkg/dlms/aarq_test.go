@@ -1,6 +1,7 @@
 package dlms
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,4 +54,29 @@ func TestEncodeAARQWithLowAuthenticationAndCipher(t *testing.T) {
 	settings.Ciphering.UnicastKey = nil
 	_, err = EncodeAARQ(&settings)
 	assert.Error(t, err)
+}
+
+func TestEncodeAARQReservesInvocationCounterBeforeCiphering(t *testing.T) {
+	ciphering, _ := NewCiphering(
+		SecurityLevelGlobalKey,
+		SecurityEncryption|SecurityAuthentication,
+		decodeHexString("4349520000000001"),
+		decodeHexString("00112233445566778899AABBCCDDEEFF"),
+		7,
+		decodeHexString("00112233445566778899AABBCCDDEEFF"),
+	)
+	wantErr := errors.New("persistence unavailable")
+	var level SecurityLevel
+	var counter uint32
+	ciphering.BeforeInvocationCounter = func(gotLevel SecurityLevel, gotCounter uint32) error {
+		level, counter = gotLevel, gotCounter
+		return wantErr
+	}
+	settings, _ := NewSettingsWithLowAuthenticationAndCiphering([]byte("secret"), ciphering)
+
+	_, err := EncodeAARQ(&settings)
+	assert.ErrorIs(t, err, wantErr)
+	assert.Equal(t, SecurityLevelGlobalKey, level)
+	assert.Equal(t, uint32(7), counter)
+	assert.Equal(t, uint32(7), settings.Ciphering.UnicastKeyIC)
 }

@@ -163,6 +163,11 @@ func generateUserInformation(settings *Settings) (out []byte, err error) {
 	initiateRequest := getInitiateRequest(settings)
 
 	if settings.Ciphering.Security != SecurityNone {
+		if settings.Ciphering.BeforeInvocationCounter != nil {
+			if err = settings.Ciphering.BeforeInvocationCounter(SecurityLevelGlobalKey, settings.Ciphering.UnicastKeyIC); err != nil {
+				return nil, err
+			}
+		}
 		cfg := Cipher{
 			Tag:          TagGloInitiateRequest,
 			Security:     settings.Ciphering.Security,

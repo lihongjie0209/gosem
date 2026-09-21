@@ -406,6 +406,11 @@ func (c *client) cipherData(src []byte) ([]byte, error) {
 		if len(c.settings.Ciphering.UnicastKey) != 16 {
 			return nil, fmt.Errorf("invalid unicast key")
 		}
+		if reserve := c.settings.Ciphering.BeforeInvocationCounter; reserve != nil {
+			if err := reserve(dlms.SecurityLevelGlobalKey, c.settings.Ciphering.UnicastKeyIC); err != nil {
+				return nil, fmt.Errorf("reserve invocation counter: %w", err)
+			}
+		}
 
 		cipher.Key = c.settings.Ciphering.UnicastKey
 		cipher.FrameCounter = c.settings.Ciphering.UnicastKeyIC
@@ -422,6 +427,11 @@ func (c *client) cipherData(src []byte) ([]byte, error) {
 
 		if len(c.settings.Ciphering.DedicatedKey) != 16 {
 			return nil, fmt.Errorf("invalid dedicated key")
+		}
+		if reserve := c.settings.Ciphering.BeforeInvocationCounter; reserve != nil {
+			if err := reserve(dlms.SecurityLevelDedicatedKey, c.settings.Ciphering.DedicatedKeyIC); err != nil {
+				return nil, fmt.Errorf("reserve invocation counter: %w", err)
+			}
 		}
 
 		cipher.Key = c.settings.Ciphering.DedicatedKey

@@ -48,6 +48,10 @@ type Ciphering struct {
 	DedicatedKey        []byte
 	DedicatedKeyIC      uint32
 	DedicatedExpectedIC uint32
+	// BeforeInvocationCounter is called before a protected APDU uses the
+	// supplied counter. Returning an error aborts encoding without consuming
+	// the counter. Callers can use it to durably reserve counters before I/O.
+	BeforeInvocationCounter func(SecurityLevel, uint32) error
 }
 
 type Settings struct {
