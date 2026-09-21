@@ -12,7 +12,9 @@ func TestEncodeRLRQ(t *testing.T) {
 	if err != nil {
 		t.Errorf("Encode Failed. Err: %v", err)
 	}
-	result := decodeHexString("6200")
+	// Include the optional normal release reason. The explicit form is valid
+	// ACSE and interoperates with peers that reject the minimal empty RLRQ.
+	result := decodeHexString("6203800100")
 	if !bytes.Equal(out, result) {
 		t.Errorf("Failed. Get: %s, should: %s", encodeHexString(out), encodeHexString(result))
 	}

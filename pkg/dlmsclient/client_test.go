@@ -326,7 +326,7 @@ func TestClient_CloseAssociation(t *testing.T) {
 	c, tm, rdc := associate(t)
 
 	tm.On("IsConnected").Return(true).Once()
-	sendReceive(tm, rdc, "6200", "6300")
+	sendReceive(tm, rdc, "6203800100", "6300")
 
 	err := c.CloseAssociation()
 	assert.NoError(t, err)
@@ -466,7 +466,7 @@ func TestClient_CompleteCommunication(t *testing.T) {
 	err := c.GetRequest(dlms.CreateAttributeDescriptor(8, "0-0:1.0.0.255", 3), nil)
 	assert.NoError(t, err)
 
-	sendReceive(tm, rdc, "6200", "6300")
+	sendReceive(tm, rdc, "6203800100", "6300")
 	err = c.CloseAssociation()
 	assert.NoError(t, err)
 
