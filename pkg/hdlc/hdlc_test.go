@@ -201,7 +201,7 @@ func TestHDLC_SegmentsOversizedRequest(t *testing.T) {
 		payload[index] = byte(index)
 	}
 	withLLC := append([]byte{0xE6, 0xE6, 0x00}, payload...)
-	transportMock.On("IsConnected").Return(true).Twice()
+	transportMock.On("IsConnected").Return(true).Once()
 	sendReceiveBytes(transportMock, rdc,
 		hdlc.BuildSegmentedFrame(hdlc.AddressingOneByte, 2, 1, 0, 0x10, withLLC[:32]),
 		buildServerFrame(2, 1, 0x31, false, nil))

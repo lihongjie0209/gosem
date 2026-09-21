@@ -300,9 +300,13 @@ func (h *hdlc) Send(src []byte) error {
 			// RR frame
 			if sss := int(rf.Control>>5) & 0x07; sss != h.sss {
 				h.sss = h.decreaseSequenceNumber(h.sss)
+				remoteReady = false
+				break
 			}
 
 			remoteReady = true
+			retries = 0
+			continue
 		default:
 			return fmt.Errorf("unexpected frame with control %02X", rf.Control)
 		}
