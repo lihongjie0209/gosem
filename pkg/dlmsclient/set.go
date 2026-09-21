@@ -191,13 +191,21 @@ func (c *client) setRequestWithDataBlock(att *dlms.AttributeDescriptor, out []by
 			return nil
 		}
 
-		resp, ok := pdu.(dlms.SetResponseDataBlock)
-		if !ok {
+		switch resp := pdu.(type) {
+		case dlms.SetResponseDataBlock:
+			if resp.BlockNum != blockNumber {
+				return dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("in %s unexpected block number %d (expected %d)", att.String(), resp.BlockNum, blockNumber))
+			}
+		case dlms.SetResponseNormal:
+			// GuruxDLMS servers acknowledge each accepted partial block with a
+			// normal response while retaining the block-transfer transaction.
+			// Continue only for a successful result; a server that actually
+			// completed the SET will reject the following data block.
+			if resp.Result != dlms.TagAccSuccess {
+				return dlms.NewError(dlms.ErrorSetRejected, fmt.Sprintf("set %s rejected: %s", att.String(), resp.Result.String()))
+			}
+		default:
 			return dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("in %s unexpected PDU response type: %T", att.String(), pdu))
-		}
-
-		if resp.BlockNum != blockNumber {
-			return dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("in %s unexpected block number %d (expected %d)", att.String(), resp.BlockNum, blockNumber))
 		}
 
 		isFirstBlock = false
