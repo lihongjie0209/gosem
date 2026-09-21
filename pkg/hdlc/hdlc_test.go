@@ -179,6 +179,43 @@ func TestHDLC_ReassemblesSegmentedResponse(t *testing.T) {
 	transportMock.AssertExpectations(t)
 }
 
+func TestHDLC_SegmentsOversizedRequest(t *testing.T) {
+	transportMock := mocks.NewTransportMock(t)
+	rdc := make(dlms.DataChannel, 10)
+	hdc := make(dlms.DataChannel, 1)
+	transportMock.On("SetReception", mock.Anything).Run(func(args mock.Arguments) {
+		rdc = args.Get(0).(dlms.DataChannel)
+	}).Once()
+
+	w := hdlc.New(transportMock, replyTimeout, 1, interOctetTimeout, 0, 2, 1, hdlc.AddressingOneByte)
+	w.SetReception(hdc)
+	transportMock.On("Connect").Return(nil).Once()
+	ua := []byte{0x81, 0x80, 0x03, 0x06, 0x01, 0x20}
+	sendReceiveBytes(transportMock, rdc,
+		hdlc.BuildFrame(hdlc.AddressingOneByte, 2, 1, 0, hdlc.ControlSNRM, nil),
+		buildServerFrame(2, 1, hdlc.ControlUA, false, ua))
+	assert.NoError(t, w.Connect())
+
+	payload := make([]byte, 50)
+	for index := range payload {
+		payload[index] = byte(index)
+	}
+	withLLC := append([]byte{0xE6, 0xE6, 0x00}, payload...)
+	transportMock.On("IsConnected").Return(true).Twice()
+	sendReceiveBytes(transportMock, rdc,
+		hdlc.BuildSegmentedFrame(hdlc.AddressingOneByte, 2, 1, 0, 0x10, withLLC[:32]),
+		buildServerFrame(2, 1, 0x31, false, nil))
+	sendReceiveBytes(transportMock, rdc,
+		hdlc.BuildFrame(hdlc.AddressingOneByte, 2, 1, 0, 0x12, withLLC[32:]),
+		buildServerFrame(2, 1, 0x50, false, []byte{0xE6, 0xE7, 0x00, 0xC5, 0x01, 0xC1, 0x00}))
+	assert.NoError(t, w.Send(payload))
+	assert.Equal(t, []byte{0xC5, 0x01, 0xC1, 0x00}, <-hdc)
+
+	transportMock.On("Close").Return(nil).Once()
+	w.Close()
+	transportMock.AssertExpectations(t)
+}
+
 func TestHDLC_OneByte_Connect(t *testing.T) {
 	transportMock := mocks.NewTransportMock(t)
 

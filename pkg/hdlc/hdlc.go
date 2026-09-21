@@ -229,17 +229,31 @@ func (h *hdlc) Send(src []byte) error {
 	remoteReady := true
 	firstResponseFrame := true
 	response := make([]byte, 0, maxDataLength)
+	sendOffset := 0
 
 	for {
 		var frameToSend []byte
 
 		// Send I frame if remote is ready, otherwise send RR frame
 		if remoteReady {
+			if sendOffset >= len(src) {
+				return errors.New("remote requested data after complete request")
+			}
+			end := sendOffset + h.maxInfoFieldLengthSend
+			if end > len(src) {
+				end = len(src)
+			}
+			segmented := end < len(src)
 			// Create control byte for I Frame
 			control := uint8((h.rrr << 5) | (h.sss << 1) | finalWindowBit | ControlI)
 			h.sss = h.increaseSequenceNumber(h.sss)
 
-			frameToSend = h.createFrame(control, src)
+			if segmented {
+				frameToSend = BuildSegmentedFrame(h.addressing, h.clientAddress, h.upperAddress, h.lowerAddress, control, src[sendOffset:end])
+			} else {
+				frameToSend = h.createFrame(control, src[sendOffset:end])
+			}
+			sendOffset = end
 		} else {
 			// Create control byte for RR Frame
 			control := uint8((h.rrr << 5) | finalWindowBit | ControlRR)
@@ -255,6 +269,9 @@ func (h *hdlc) Send(src []byte) error {
 			remoteReady = false
 		case (rf.Control & controlMaskI) == ControlI:
 			// I frame
+			if sendOffset != len(src) {
+				return errors.New("received response before complete request was acknowledged")
+			}
 			var data []byte
 			var complete bool
 			data, complete, err = h.handleDataReply(rf, firstResponseFrame)

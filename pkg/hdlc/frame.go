@@ -43,6 +43,16 @@ func FCS(data []byte) uint16 {
 
 // BuildFrame builds the frame a client sends to a server.
 func BuildFrame(addressing AddressingType, client int, upper int, lower int, control uint8, data []byte) []byte {
+	return buildFrame(addressing, client, upper, lower, control, data, false)
+}
+
+// BuildSegmentedFrame builds a frame whose format field announces that more
+// information frames belong to the same upper-layer PDU.
+func BuildSegmentedFrame(addressing AddressingType, client int, upper int, lower int, control uint8, data []byte) []byte {
+	return buildFrame(addressing, client, upper, lower, control, data, true)
+}
+
+func buildFrame(addressing AddressingType, client int, upper int, lower int, control uint8, data []byte, segmented bool) []byte {
 	destLen := int(addressing)
 	frame := make([]byte, 0, 4+destLen+1+1+2+len(data)+2+1)
 
@@ -51,6 +61,9 @@ func BuildFrame(addressing AddressingType, client int, upper int, lower int, con
 
 	// Frame format, segmentation and length
 	lenAndSeg := frameFormatField
+	if segmented {
+		lenAndSeg |= 0x0800
+	}
 
 	if data != nil {
 		lenAndSeg |= destLen + 8 + len(data)
