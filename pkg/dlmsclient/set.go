@@ -168,17 +168,24 @@ func (c *client) setRequestWithDataBlock(att *dlms.AttributeDescriptor, out []by
 		}
 
 		if isLastBlock {
-			resp, ok := pdu.(dlms.SetResponseLastDataBlock)
-			if !ok {
+			var result dlms.AccessResultTag
+			switch resp := pdu.(type) {
+			case dlms.SetResponseLastDataBlock:
+				if resp.BlockNum != blockNumber {
+					return dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("in %s unexpected block number %d (expected %d)", att.String(), resp.BlockNum, blockNumber))
+				}
+				result = resp.Result
+			case dlms.SetResponseNormal:
+				// IEC 62056-53 permits the server to complete a block-transfer
+				// SET with a normal response. There is no block number in this
+				// form, so it is accepted only after sending the final block.
+				result = resp.Result
+			default:
 				return dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("in %s unexpected PDU response type: %T", att.String(), pdu))
 			}
 
-			if resp.BlockNum != blockNumber {
-				return dlms.NewError(dlms.ErrorInvalidResponse, fmt.Sprintf("in %s unexpected block number %d (expected %d)", att.String(), resp.BlockNum, blockNumber))
-			}
-
-			if resp.Result != dlms.TagAccSuccess {
-				return dlms.NewError(dlms.ErrorSetRejected, fmt.Sprintf("set %s rejected: %s", att.String(), resp.Result.String()))
+			if result != dlms.TagAccSuccess {
+				return dlms.NewError(dlms.ErrorSetRejected, fmt.Sprintf("set %s rejected: %s", att.String(), result.String()))
 			}
 
 			return nil
