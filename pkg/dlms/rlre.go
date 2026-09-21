@@ -14,53 +14,65 @@ type RLRE struct {
 
 func DecodeRLRE(ori *[]byte) (out RLRE, err error) {
 	src := *ori
-
 	if len(src) < 2 {
-		err = ErrWrongLength(len(src), 3)
-		return
+		return out, ErrWrongLength(len(src), 2)
 	}
-
 	if src[0] != TagRLRE.Value() {
-		err = ErrWrongTag(0, src[0], byte(TagRLRE))
-		return
+		return out, ErrWrongTag(0, src[0], byte(TagRLRE))
 	}
 
-	length := int(2 + src[1])
-	if len(src) < length {
-		err = ErrWrongLength(len(src), length)
-		return
+	declaredEnd := 2 + int(src[1])
+	if declaredEnd > len(src) {
+		return out, ErrWrongLength(len(src), declaredEnd)
 	}
-
-	src = src[2:]
-	length -= 2
-
-	for length != 0 {
-		if len(src) < 2 {
-			err = ErrWrongLength(len(src), 2)
-			return
+	position := 2
+	for position < len(src) {
+		if len(src)-position < 2 {
+			return out, ErrWrongLength(len(src)-position, 2)
 		}
+		tag := src[position]
+		tagLength := int(src[position+1])
+		contentStart := position + 2
 
-		tagLength := int(src[1])
-		if len(src) < (2 + tagLength) {
-			err = ErrWrongLength(len(src), 2+tagLength)
-			return
-		}
-
-		tag := src[0]
-		if tag == BERTypeContext {
-			// ReleaseRequestReasonNormal - 0x80
-			response := ReleaseResponseReason(src[2])
+		switch tag {
+		case BERTypeContext:
+			if tagLength != 1 || contentStart+tagLength > len(src) {
+				return out, ErrWrongLength(len(src)-contentStart, tagLength)
+			}
+			response := ReleaseResponseReason(src[contentStart])
 			out.ReleaseResponseReason = &response
-		}
+			position = contentStart + tagLength
 
-		if err != nil {
-			return
-		}
+		case BERTypeContext | BERTypeConstructed | PduTypeUserInformation:
+			// User information is the final RLRE field. GuruxDLMS.c emits a
+			// secured variant whose outer length is four bytes short and whose
+			// BE length is one byte short. Accept only that exact deviation when
+			// the nested octet string still proves the real boundary.
+			actualLength := len(src) - contentStart
+			guruxVariant := declaredEnd+4 == len(src) && tagLength+1 == actualLength
+			if !guruxVariant && (declaredEnd != len(src) || tagLength != actualLength) {
+				return out, ErrWrongLength(actualLength, tagLength)
+			}
+			if actualLength < 2 {
+				return out, ErrWrongLength(actualLength, 2)
+			}
+			if src[contentStart] != BERTypeOctetString {
+				return out, ErrWrongTag(contentStart, src[contentStart], BERTypeOctetString)
+			}
+			nestedLength := int(src[contentStart+1])
+			if nestedLength+2 != actualLength {
+				return out, ErrWrongLength(actualLength-2, nestedLength)
+			}
+			position = len(src)
 
-		src = src[2+tagLength:]
-		length -= 2 + tagLength
+		default:
+			return out, ErrWrongTag(position, tag, BERTypeContext)
+		}
 	}
 
-	(*ori) = (*ori)[len((*ori))-len(src):]
-	return
+	if declaredEnd != len(src) && declaredEnd+4 != len(src) {
+		return out, ErrWrongLength(len(src), declaredEnd)
+	}
+	*ori = (*ori)[len(src):]
+	return out, nil
 }

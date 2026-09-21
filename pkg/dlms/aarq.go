@@ -30,6 +30,7 @@ const (
 	BERTypeContext     = 0x80
 	BERTypeApplication = 0x40
 	BERTypeConstructed = 0x20
+	BERTypeOctetString = 0x04
 )
 
 type ApplicationContext uint8
